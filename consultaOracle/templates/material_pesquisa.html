@@ -38,10 +38,17 @@
                             <option value="" disabled selected>Escolha a Condição</option>
                             <option value="menorq" {% if request.GET.saldo_filter == 'menorq' %}selected{% endif %}>Menor que</option>
                             <option value="igual" {% if request.GET.saldo_filter == 'igual' %}selected{% endif %}>Igual a</option>
-                            <option value="maiorq" {% if request.GET.saldo_filter == 'maiorq' %}selected{% endif %}>Maior que</option>                            
+                            <option value="maiorq" {% if request.GET.saldo_filter == 'maiorq' %}selected{% endif %}>Maior que</option>     
+                            <option value="entre" {% if request.GET.saldo_filter == 'entre' %}selected{% endif %}>Entre</option>                            
                         </select>
-                        <input type="number" name="saldo" id="saldo_value" class="form-control" min="0"
-                            placeholder="Digite o valor do Saldo" value="{{ request.GET.saldo }}">
+                        <div class="input-group-append">
+                            <input type="number" name="saldo" id="saldo_value" class="form-control" min="0"
+                                placeholder="Digite o valor do Saldo" value="{{ request.GET.saldo }}">
+                        </div>
+                        <div id="saldo_between_input" style="display: none;">
+                            <input type="number" name="saldo_between_end" id="saldo_between_end" class="form-control" min="0"
+                                   placeholder="Digite o valor final" value="{{ request.GET.saldo_between_end }}">
+                        </div>
                     </div>
                 </div>
 
@@ -55,10 +62,17 @@
                             <option value="" disabled selected>Escolha a Condição</option>
                             <option value="menorq" {% if request.GET.ultimoUso_filter == 'menorq' %}selected{% endif %}>Menor que</option>
                             <option value="igual" {% if request.GET.ultimoUso_filter == 'igual' %}selected{% endif %}>Igual a</option>
-                            <option value="maiorq" {% if request.GET.ultimoUso_filter == 'maiorq' %}selected{% endif %}>Maior que</option>                            
+                            <option value="maiorq" {% if request.GET.ultimoUso_filter == 'maiorq' %}selected{% endif %}>Maior que</option>
+                            <option value="entre" {% if request.GET.ultimoUso_filter == 'entre' %}selected{% endif %}>Entre</option>                            
                         </select>
-                        <input type="number" name="ultimoUso" id="ultimoUso_value" class="form-control" min="0"
-                            placeholder="Digite o valor do período em meses" value="{{ request.GET.ultimoUso }}">
+                        <div class="input-group-append">
+                            <input type="number" name="ultimoUso" id="ultimoUso_value" class="form-control" min="0"
+                                placeholder="Digite o valor do período em meses" value="{{ request.GET.ultimoUso }}">
+                        </div>
+                        <div id="ultimoUso_between_input" style="display: none;">
+                            <input type="number" name="ultimoUso_between_end" id="ultimoUso_between_end" class="form-control" min="0"
+                                   placeholder="Digite o valor final" value="{{ request.GET.ultimoUso_between_end }}">
+                        </div>
                     </div>
                 </div>
                 {% endif %}
@@ -139,3 +153,39 @@
 </body>
 
 </html>
+
+<script>
+    document.addEventListener('DOMContentLoaded', function () {
+        // Handle Saldo "Between"
+        const saldoSelect = document.getElementById('saldo_input');
+        const saldoBetweenInput = document.getElementById('saldo_between_input');
+        if (saldoSelect.value === 'entre') {
+            saldoBetweenInput.style.display = 'block';
+        } else {
+            saldoBetweenInput.style.display = 'none';
+        }
+        saldoSelect.addEventListener('change', function () {
+            if (this.value === 'entre') {
+                saldoBetweenInput.style.display = 'block';
+            } else {
+                saldoBetweenInput.style.display = 'none';
+            }
+        });
+
+        // Handle Último Uso "Between"
+        const ultimoUsoSelect = document.getElementById('ultimoUso_input');
+        const ultimoUsoBetweenInput = document.getElementById('ultimoUso_between_input');
+        if (ultimoUsoSelect.value === 'entre') {
+            ultimoUsoBetweenInput.style.display = 'block';
+        } else {
+            ultimoUsoBetweenInput.style.display = 'none';
+        }
+        ultimoUsoSelect.addEventListener('change', function () {
+            if (this.value === 'entre') {
+                ultimoUsoBetweenInput.style.display = 'block';
+            } else {
+                ultimoUsoBetweenInput.style.display = 'none';
+            }
+        });
+    });
+</script>

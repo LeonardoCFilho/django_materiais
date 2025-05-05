@@ -52,8 +52,10 @@ def material_pesquisa(request, flagUltimoUso = False):
     descricao = request.GET.get('descricao')
     saldo_filter = request.GET.get('saldo_filter')
     saldo = request.GET.get('saldo')
+    saldoMax = request.GET.get('saldo_between_end')
     ultimoUso_filter = request.GET.get('ultimoUso_filter')
     ultimoUso = request.GET.get('ultimoUso')
+    ultimoUsoMax = request.GET.get('ultimoUso_between_end')
 
     materials = Material.objects.all()
 
@@ -73,6 +75,8 @@ def material_pesquisa(request, flagUltimoUso = False):
                 materials = materials.filter(saldo=saldo)
             case 'maiorq': # >
                 materials = materials.filter(saldo__gt=saldo)
+            case 'entre':
+                materials = materials.filter(saldo__gte=saldo).filter(saldo__lte=saldoMax)
 
     # Ultima requisição/uso
     if request.session.get('flagUltimoUso', False):
@@ -98,6 +102,8 @@ def material_pesquisa(request, flagUltimoUso = False):
                         flagAddDict = difUltimoUso = int(ultimoUso)
                     case 'maiorq': # >
                         flagAddDict = difUltimoUso > int(ultimoUso)
+                    case 'entre':
+                        flagAddDict = int(ultimoUso) <= difUltimoUso and difUltimoUso <= int(ultimoUsoMax)
             if difUltimoUso == -1:
                 difUltimoUso = None
             # Fazer o add quando valido
