@@ -5,6 +5,45 @@ def index(request):
     return render(request, 'index_consultaOracle.html')
 ### index FIM
 
+### lista com filtro 
+def material_pesquisa(request):
+    from django.shortcuts import render
+    from django.core.paginator import Paginator
+    from .models import Material
+
+    # Extract filter parameters
+    codigo = request.GET.get('codigo')
+    descricao = request.GET.get('descricao')
+    saldo_filter = request.GET.get('saldo_filter')
+    saldo = request.GET.get('saldo')
+
+    # Start with all materials
+    materials = Material.objects.all()
+
+    # Filter by codigo (if provided)
+    if codigo:
+        materials = materials.filter(codigo__startswith=codigo)
+
+    # Filter by descricao (if provided)
+    if descricao:
+        materials = materials.filter(descricao__icontains=descricao)
+
+    # Filter by saldo (if provided)
+    if saldo_filter and saldo:
+        if saldo_filter == 'lt':  # Less Than
+            materials = materials.filter(saldo__lt=saldo)
+        elif saldo_filter == 'eq':  # Equals
+            materials = materials.filter(saldo=saldo)
+        elif saldo_filter == 'gt':  # More Than
+            materials = materials.filter(saldo__gt=saldo)
+
+    # Pagination
+    paginator = Paginator(materials, 20)  # Show 20 materials per page
+    page_number = request.GET.get('page')
+    page_obj = paginator.get_page(page_number)
+    return render(request, 'material_pesquisa.html', {'page_obj': page_obj})
+### lista com filtro FIM
+
 ### inserindo objetos na database
 # Teoricamente materias podem codigos iguais, so é incrivelmente improvável
 def criar_material(n=10):
@@ -44,64 +83,3 @@ def criar_consumo_material(n=10):
 #criar_material(100)
 #criar_consumo_material(100)
 ### inserindo objetos na database FIM
-
-### temp lista tudo
-def material_list(request):
-    from django.shortcuts import render
-    from django.core.paginator import Paginator
-    from .models import Material
-
-    # Get all materials from the database
-    materials = Material.objects.all()
-
-    # Create a Paginator object to paginate the results
-    paginator = Paginator(materials, 20)  # Show 20 materials per page
-
-    # Get the page number from the URL parameters (default to 1 if not provided)
-    page_number = request.GET.get('page', 1)
-    
-    # Get the materials for the current page
-    page_obj = paginator.get_page(page_number)
-
-    # Pass the materials to the template
-    return render(request, 'material_list.html', {'page_obj': page_obj})
-### temp lista tudo FIM
-
-### lista com filtro 
-def material_pesquisa(request):
-    from django.shortcuts import render
-    from django.core.paginator import Paginator
-    from .models import Material
-
-    # Extract filter parameters
-    codigo = request.GET.get('codigo')
-    descricao = request.GET.get('descricao')
-    saldo_filter = request.GET.get('saldo_filter')
-    saldo = request.GET.get('saldo')
-
-    # Start with all materials
-    materials = Material.objects.all()
-
-    # Filter by codigo (if provided)
-    if codigo:
-        materials = materials.filter(codigo__startswith=codigo)
-
-    # Filter by descricao (if provided)
-    if descricao:
-        materials = materials.filter(descricao__icontains=descricao)
-
-    # Filter by saldo (if provided)
-    if saldo_filter and saldo:
-        if saldo_filter == 'lt':  # Less Than
-            materials = materials.filter(saldo__lt=saldo)
-        elif saldo_filter == 'eq':  # Equals
-            materials = materials.filter(saldo=saldo)
-        elif saldo_filter == 'gt':  # More Than
-            materials = materials.filter(saldo__gt=saldo)
-
-    # Pagination
-    paginator = Paginator(materials, 20)  # Show 20 materials per page
-    page_number = request.GET.get('page')
-    page_obj = paginator.get_page(page_number)
-    return render(request, 'material_pesquisa.html', {'page_obj': page_obj})
-### lista com filtro FIM
