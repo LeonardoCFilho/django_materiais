@@ -30,12 +30,15 @@ def calculaPeriodo(dataAntiga, dataNova = timezone.now(), escala = 'm', precisao
         case 'a':
             return round((delta.days/365),precisao)
 ### Calcular periodo entre duas datas FIM
- 
+
 ### lista com filtro 
-def material_pesquisa(request, flagUltimoUso = False):
+def material_pesquisa(request):
     from django.shortcuts import render
     from django.core.paginator import Paginator
     from .models import Material, ConsumoMaterial
+    from django.db.models import OuterRef, Subquery, F
+    from django.utils import timezone
+    from django.db.models import ExpressionWrapper, fields
 
     # Fazer a logica de login => Não está loggado -> redirect para outra página
     # <login>
@@ -56,6 +59,8 @@ def material_pesquisa(request, flagUltimoUso = False):
     ultimoUso_filter = request.GET.get('ultimoUso_filter')
     ultimoUso = request.GET.get('ultimoUso')
     ultimoUsoMax = request.GET.get('ultimoUso_between_end')
+    ordemOrdenacao = request.GET.get('ordemOrdenacao')
+    campoOrdenacao = request.GET.get('campoOrdenacao')
 
     materials = Material.objects.all()
 
@@ -76,46 +81,41 @@ def material_pesquisa(request, flagUltimoUso = False):
             case 'maiorq': # >
                 materials = materials.filter(saldo__gt=saldo)
             case 'entre':
-                materials = materials.filter(saldo__gte=saldo).filter(saldo__lte=saldoMax)
+                materials = materials.filter(saldo__gte=saldo, saldo__lte=saldoMax)
 
     # Ultima requisição/uso
     if request.session.get('flagUltimoUso', False):
-        listaRefinada = []
-        for material in materials:
-            # Encontrar uso mais recente
-            ultimoConsumo = ConsumoMaterial.objects.filter(materialUsado=material).order_by('-dataConsumo').first()
-            # Calcular
-            difUltimoUso = None
-            if ultimoConsumo:
-                difUltimoUso = int(calculaPeriodo(ultimoConsumo.dataConsumo,precisao=0))
-            # Add no dict se valido
-            ## Checar se é valido
-            flagAddDict = True # Por segurança
-            if difUltimoUso == None:
-                difUltimoUso = -1
-            ## Filtro por ultimo uso (meses)
-            if ultimoUso_filter and ultimoUso:
-                match ultimoUso_filter:
-                    case 'menorq': # <
-                        flagAddDict = difUltimoUso < int(ultimoUso)
-                    case 'igual': # =
-                        flagAddDict = difUltimoUso = int(ultimoUso)
-                    case 'maiorq': # >
-                        flagAddDict = difUltimoUso > int(ultimoUso)
-                    case 'entre':
-                        flagAddDict = int(ultimoUso) <= difUltimoUso and difUltimoUso <= int(ultimoUsoMax)
-            if difUltimoUso == -1:
-                difUltimoUso = None
-            # Fazer o add quando valido
-            if flagAddDict:
-                listaRefinada.append({
-                    'codigo': material.codigo,
-                    'descricao': material.descricao,
-                    'saldo': material.saldo,
-                    'ultimoUso_meses': difUltimoUso,
-                })
-        # Fim do loop, sobrescrever a lista
-        materials = listaRefinada
+        # criar query para o subquery
+        ultimoConsumo = ConsumoMaterial.objects.filter(materialUsado=OuterRef('pk')).order_by('-dataConsumo').values('dataConsumo')[:1]
+        # Concatenar
+        materials = materials.annotate(ultimoUso_data=Subquery(ultimoConsumo)).annotate(
+            ultimoUso_meses=ExpressionWrapper(timezone.now() - F('ultimoUso_data'),output_field=fields.DurationField())
+        )
+        # Converter de dia para mes
+        materials = materials.annotate( 
+            ultimoUso_meses=ExpressionWrapper(F('ultimoUso_meses') / timezone.timedelta(days=30), output_field=fields.IntegerField())
+        )
+        materials = materials.annotate( # arrendondar
+            ultimoUso_meses_int=ExpressionWrapper(F('ultimoUso_meses'), output_field=fields.IntegerField())
+        )
+        ## Filtro por último uso (meses)
+        if ultimoUso_filter and ultimoUso:
+            match ultimoUso_filter:
+                case 'menorq':  # <
+                    materials = materials.filter(ultimoUso_meses__lt=int(ultimoUso))
+                case 'igual':  # =
+                    materials = materials.filter(ultimoUso_meses=int(ultimoUso))
+                case 'maiorq':  # >
+                    materials = materials.filter(ultimoUso_meses__gt=int(ultimoUso))
+                case 'entre':  # entre...
+                    if ultimoUsoMax:
+                        materials = materials.filter(ultimoUso_meses__gte=int(ultimoUso), ultimoUso_meses__lte=int(ultimoUsoMax))
+
+    # Ordenação
+    if campoOrdenacao and ordemOrdenacao:
+        if ordemOrdenacao == 'd':
+            campoOrdenacao = '-'+campoOrdenacao
+        materials = materials.order_by(campoOrdenacao)
 
     # Paginação
     paginator = Paginator(materials, 20)  # 20 itens por página
