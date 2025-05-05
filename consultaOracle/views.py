@@ -59,8 +59,9 @@ def material_pesquisa(request):
     ultimoUso_filter = request.GET.get('ultimoUso_filter')
     ultimoUso = request.GET.get('ultimoUso')
     ultimoUsoMax = request.GET.get('ultimoUso_between_end')
-    ordemOrdenacao = request.GET.get('ordemOrdenacao')
-    campoOrdenacao = request.GET.get('campoOrdenacao')
+    # Ordenação padrão vai ser por código (crescente)
+    ordemOrdenacao = request.GET.get('ordemOrdenacao', 'c')
+    campoOrdenacao = request.GET.get('campoOrdenacao', 'codigo')
 
     materials = Material.objects.all()
 
@@ -152,8 +153,8 @@ def criar_consumo_material(n=10):
     from datetime import timedelta
     from django.utils import timezone
     for _ in range(n):
-        codigoMaterial = random.randint(1, 100)  # material aleatroio
-        dataAleatoria = timezone.now() - timedelta(days=random.randint(1, 300))
+        codigoMaterial = random.randint(1, len(Material.objects.all()))  # material aleatroio
+        dataAleatoria = timezone.now() - timedelta(days=random.randint(1, 900))
         ConsumoMaterial.objects.create(
             materialUsado = Material.objects.get(id=codigoMaterial),
             dataConsumo = dataAleatoria,

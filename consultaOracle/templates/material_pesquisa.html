@@ -106,6 +106,10 @@
             <button type="submit" class="btn btn-primary">Filtrar</button>
         </form>
 
+        <form method="GET" action="{% url 'consultaOracle:material_pesquisa' %}">
+            <button type="submit" class="btn btn-secondary">Limpar filtros</button>
+        </form>
+
         <!-- Tabela para exibir os materiais -->
         <table class="table table-bordered mt-4">
             <thead>
