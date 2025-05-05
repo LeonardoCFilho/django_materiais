@@ -2,46 +2,120 @@ from django.shortcuts import render, redirect
 
 ### index 
 def index(request):
+    request.session.pop('flagUltimoUso', None)
     return render(request, 'index_consultaOracle.html')
 ### index FIM
 
+### Calcular periodo entre duas datas
+# Ideia: Retorna a qtd de dias entre duas datas, ref para data nova é o dia atual
+from django.utils import timezone
+def calculaPeriodo(dataAntiga, dataNova = timezone.now(), escala = 'm', precisao = 0):
+    from datetime import timedelta
+    import math
+    # Evitar erros
+    if not dataAntiga:
+        return None  
+    # Lidar com timezone
+    if dataAntiga and dataAntiga.tzinfo is None:
+        dataAntiga = timezone.make_aware(dataAntiga)
+    if dataNova.tzinfo is None:
+        dataNova = timezone.make_aware(dataNova)
+    # Calcular periodo
+    delta = dataNova - dataAntiga
+    match escala:
+        case 'd':
+            return delta.days
+        case 'm':
+            return round((delta.days/30),precisao)
+        case 'a':
+            return round((delta.days/365),precisao)
+### Calcular periodo entre duas datas FIM
+ 
 ### lista com filtro 
-def material_pesquisa(request):
+def material_pesquisa(request, flagUltimoUso = False):
     from django.shortcuts import render
     from django.core.paginator import Paginator
-    from .models import Material
+    from .models import Material, ConsumoMaterial
 
-    # Extract filter parameters
+    # Fazer a logica de login => Não está loggado -> redirect para outra página
+    # <login>
+
+    # Fazer a logica de permissões
+    # <permissões>
+    
+    # temp
+    if not request.session.get('flagUltimoUso', None):
+        request.session['flagUltimoUso'] = request.GET.get('flagUltimoUso', 'false').lower() == 'true' 
+
+    # Leitura do html
     codigo = request.GET.get('codigo')
     descricao = request.GET.get('descricao')
     saldo_filter = request.GET.get('saldo_filter')
     saldo = request.GET.get('saldo')
+    ultimoUso_filter = request.GET.get('ultimoUso_filter')
+    ultimoUso = request.GET.get('ultimoUso')
 
-    # Start with all materials
     materials = Material.objects.all()
 
-    # Filter by codigo (if provided)
+    # Filtros
+    ## Filtro por codigo (numerico)
     if codigo:
         materials = materials.filter(codigo__startswith=codigo)
-
-    # Filter by descricao (if provided)
+    ## Filtro por descrição (string)
     if descricao:
         materials = materials.filter(descricao__icontains=descricao)
-
-    # Filter by saldo (if provided)
+    ## Filtro por saldo (qtd)
     if saldo_filter and saldo:
-        if saldo_filter == 'lt':  # Less Than
-            materials = materials.filter(saldo__lt=saldo)
-        elif saldo_filter == 'eq':  # Equals
-            materials = materials.filter(saldo=saldo)
-        elif saldo_filter == 'gt':  # More Than
-            materials = materials.filter(saldo__gt=saldo)
+        match saldo_filter:
+            case 'menorq': # <
+                materials = materials.filter(saldo__lt=saldo)
+            case 'igual': # =
+                materials = materials.filter(saldo=saldo)
+            case 'maiorq': # >
+                materials = materials.filter(saldo__gt=saldo)
 
-    # Pagination
-    paginator = Paginator(materials, 20)  # Show 20 materials per page
+    # Ultima requisição/uso
+    if request.session.get('flagUltimoUso', False):
+        listaRefinada = []
+        for material in materials:
+            # Encontrar uso mais recente
+            ultimoConsumo = ConsumoMaterial.objects.filter(materialUsado=material).order_by('-dataConsumo').first()
+            # Calcular
+            difUltimoUso = None
+            if ultimoConsumo:
+                difUltimoUso = int(calculaPeriodo(ultimoConsumo.dataConsumo,precisao=0))
+            # Add no dict se valido
+            ## Checar se é valido
+            flagAddDict = True # Por segurança
+            if difUltimoUso == None:
+                difUltimoUso = -1
+            ## Filtro por ultimo uso (meses)
+            if ultimoUso_filter and ultimoUso:
+                match ultimoUso_filter:
+                    case 'menorq': # <
+                        flagAddDict = difUltimoUso < int(ultimoUso)
+                    case 'igual': # =
+                        flagAddDict = difUltimoUso = int(ultimoUso)
+                    case 'maiorq': # >
+                        flagAddDict = difUltimoUso > int(ultimoUso)
+            if difUltimoUso == -1:
+                difUltimoUso = None
+            # Fazer o add quando valido
+            if flagAddDict:
+                listaRefinada.append({
+                    'codigo': material.codigo,
+                    'descricao': material.descricao,
+                    'saldo': material.saldo,
+                    'ultimoUso_meses': difUltimoUso,
+                })
+        # Fim do loop, sobrescrever a lista
+        materials = listaRefinada
+
+    # Paginação
+    paginator = Paginator(materials, 20)  # 20 itens por página
     page_number = request.GET.get('page')
     page_obj = paginator.get_page(page_number)
-    return render(request, 'material_pesquisa.html', {'page_obj': page_obj})
+    return render(request, 'material_pesquisa.html', {'page_obj': page_obj, 'flagUltimoUso': request.session.get('flagUltimoUso', False)})
 ### lista com filtro FIM
 
 ### inserindo objetos na database
@@ -73,7 +147,7 @@ def criar_consumo_material(n=10):
     from django.utils import timezone
     for _ in range(n):
         codigoMaterial = random.randint(1, 100)  # material aleatroio
-        dataAleatoria = timezone.now() - timedelta(days=random.randint(1, 30))
+        dataAleatoria = timezone.now() - timedelta(days=random.randint(1, 300))
         ConsumoMaterial.objects.create(
             materialUsado = Material.objects.get(id=codigoMaterial),
             dataConsumo = dataAleatoria,
