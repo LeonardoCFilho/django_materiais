@@ -1,170 +1,65 @@
-from django.shortcuts import render, redirect
-
-### index 
-def index(request):
-    request.session.pop('flagUltimoUso', None)
-    return render(request, 'index_consultaOracle.html')
-### index FIM
-
-### Calcular periodo entre duas datas
-# Ideia: Retorna a qtd de dias entre duas datas, ref para data nova é o dia atual
+from rest_framework import viewsets, filters
+from rest_framework.decorators import action
+from rest_framework.response import Response
+from .models import Material, ConsumoMaterial
+from .serializers import MaterialSerializer
+from django.db.models import OuterRef, Subquery, F, ExpressionWrapper, fields
 from django.utils import timezone
-def calculaPeriodo(dataAntiga, dataNova = timezone.now(), escala = 'm', precisao = 0):
-    from datetime import timedelta
-    import math
-    # Evitar erros
-    if not dataAntiga:
-        return None  
-    # Lidar com timezone
-    if dataAntiga and dataAntiga.tzinfo is None:
-        dataAntiga = timezone.make_aware(dataAntiga)
-    if dataNova.tzinfo is None:
-        dataNova = timezone.make_aware(dataNova)
-    # Calcular periodo
-    delta = dataNova - dataAntiga
-    match escala:
-        case 'd':
-            return delta.days
-        case 'm':
-            return round((delta.days/30),precisao)
-        case 'a':
-            return round((delta.days/365),precisao)
-### Calcular periodo entre duas datas FIM
+from rest_framework.pagination import PageNumberPagination
+from django.shortcuts import render
+from rest_framework.views import APIView
+from rest_framework import status
 
-### lista com filtro 
-def material_pesquisa(request):
-    from django.shortcuts import render
-    from django.core.paginator import Paginator
-    from .models import Material, ConsumoMaterial
-    from django.db.models import OuterRef, Subquery, F
-    from django.utils import timezone
-    from django.contrib import messages
-    from django.db.models import ExpressionWrapper, fields
 
-    # Fazer a logica de login => Não está loggado -> redirect para outra página
-    # <login>
+class MaterialViewSet(viewsets.ModelViewSet):
+    queryset = Material.objects.all()
+    serializer_class = MaterialSerializer
+    filter_backends = [filters.SearchFilter, filters.OrderingFilter]
+    search_fields = ["codigo", "descricao"]
+    ordering_fields = ["codigo", "descricao", "saldo"]
+    pagination_class = PageNumberPagination
 
-    # Fazer a logica de permissões
-    # <permissões>
-    
-    # temp
-    if not request.session.get('flagUltimoUso', None):
-        request.session['flagUltimoUso'] = request.GET.get('flagUltimoUso', 'false').lower() == 'true' 
+    def get_queryset(self):
+        queryset = super().get_queryset()
+        request = self.request
 
-    # Leitura do html
-    codigo = request.GET.get('codigo')
-    descricao = request.GET.get('descricao')
-    saldo_filter = request.GET.get('saldo_filter')
-    saldo = request.GET.get('saldo')
-    saldoMax = request.GET.get('saldo_between_end')
-    ultimoUso_filter = request.GET.get('ultimoUso_filter')
-    ultimoUso = request.GET.get('ultimoUso')
-    ultimoUsoMax = request.GET.get('ultimoUso_between_end')
-    # Ordenação padrão vai ser por código (crescente)
-    ordemOrdenacao = request.GET.get('ordemOrdenacao', 'c')
-    campoOrdenacao = request.GET.get('campoOrdenacao', 'codigo')
+        # Filtros
+        codigo = request.query_params.get("codigo")
+        descricao = request.query_params.get("descricao")
+        saldo_filter = request.query_params.get("saldo_filter")
+        saldo = request.query_params.get("saldo")
+        saldo_max = request.query_params.get("saldo_between_end")
 
-    materials = Material.objects.filter(codigo__startswith=30)
+        if codigo:
+            queryset = queryset.filter(codigo__startswith=codigo)
+        if descricao:
+            queryset = queryset.filter(descricao__icontains=descricao)
+        if saldo_filter and saldo:
+            if saldo_filter == "menorq":
+                queryset = queryset.filter(saldo__lt=saldo)
+            elif saldo_filter == "igual":
+                queryset = queryset.filter(saldo=saldo)
+            elif saldo_filter == "maiorq":
+                queryset = queryset.filter(saldo__gt=saldo)
+            elif saldo_filter == "entre" and saldo_max:
+                queryset = queryset.filter(saldo__gte=saldo, saldo__lte=saldo_max)
 
-    # Filtros
-    ## Filtro por codigo (numerico)
-    if codigo:
-        if len(codigo)>=2 and (codigo[0] == '3' and codigo[1] == '0'):
-            materials = materials.filter(codigo__startswith=codigo)
-        else:
-            messages.error(request, "O código de materiais deve começar com '30'.")
-    ## Filtro por descrição (string)
-    if descricao:
-        materials = materials.filter(descricao__icontains=descricao)
-    ## Filtro por saldo (qtd)
-    if saldo_filter and saldo:
-        match saldo_filter:
-            case 'menorq': # <
-                materials = materials.filter(saldo__lt=saldo)
-            case 'igual': # =
-                materials = materials.filter(saldo=saldo)
-            case 'maiorq': # >
-                materials = materials.filter(saldo__gt=saldo)
-            case 'entre':
-                materials = materials.filter(saldo__gte=saldo, saldo__lte=saldoMax)
+        return queryset
 
-    # Ultima requisição/uso
-    if request.session.get('flagUltimoUso', False):
-        # criar query para o subquery
-        ultimoConsumo = ConsumoMaterial.objects.filter(materialUsado=OuterRef('pk')).order_by('-dataConsumo').values('dataConsumo')[:1]
-        # Concatenar
-        materials = materials.annotate(ultimoUso_data=Subquery(ultimoConsumo)).annotate(
-            ultimoUso_meses=ExpressionWrapper(timezone.now() - F('ultimoUso_data'),output_field=fields.DurationField())
+    @action(detail=False, methods=["get"])
+    def filtros(self, request):
+        return Response(
+            {
+                "saldo_filter_options": [
+                    {"value": "menorq", "label": "Menor que"},
+                    {"value": "igual", "label": "Igual a"},
+                    {"value": "maiorq", "label": "Maior que"},
+                    {"value": "entre", "label": "Entre"},
+                ],
+            }
         )
-        # Converter de dia para mes
-        materials = materials.annotate( 
-            ultimoUso_meses=ExpressionWrapper(F('ultimoUso_meses') / timezone.timedelta(days=30), output_field=fields.IntegerField())
-        )
-        materials = materials.annotate( # arrendondar
-            ultimoUso_meses_int=ExpressionWrapper(F('ultimoUso_meses'), output_field=fields.IntegerField())
-        )
-        ## Filtro por último uso (meses)
-        if ultimoUso_filter and ultimoUso:
-            match ultimoUso_filter:
-                case 'menorq':  # <
-                    materials = materials.filter(ultimoUso_meses__lt=int(ultimoUso))
-                case 'igual':  # =
-                    materials = materials.filter(ultimoUso_meses=int(ultimoUso))
-                case 'maiorq':  # >
-                    materials = materials.filter(ultimoUso_meses__gt=int(ultimoUso))
-                case 'entre':  # entre...
-                    if ultimoUsoMax:
-                        materials = materials.filter(ultimoUso_meses__gte=int(ultimoUso), ultimoUso_meses__lte=int(ultimoUsoMax))
-
-    # Ordenação
-    if campoOrdenacao and ordemOrdenacao:
-        if ordemOrdenacao == 'd':
-            campoOrdenacao = '-'+campoOrdenacao
-        materials = materials.order_by(campoOrdenacao)
-
-    # Paginação
-    paginator = Paginator(materials, 20)  # 20 itens por página
-    page_number = request.GET.get('page')
-    page_obj = paginator.get_page(page_number)
-    return render(request, 'material_pesquisa.html', {'page_obj': page_obj, 'flagUltimoUso': request.session.get('flagUltimoUso', False)})
-### lista com filtro FIM
-
-### inserindo objetos na database
-# Teoricamente materias podem codigos iguais, so é incrivelmente improvável
-def criar_material(n=10):
-    from .models import Material
-    import random
-    
-    sujeitos = ["O cachorro", "A garota", "O professor", "A mãe", "O carro", "O cientista", "O político", "A estrela"]
-    verbos = ["corre", "estuda", "fala", "viaja", "compreende", "brinca", "diz", "ajuda"]
-    objetos = ["na rua", "com os amigos", "no trabalho", "na escola", "para casa", "no parque", "para o futuro", "ao mundo"]
-    for _ in range(n):
-        codigo = random.randint(int(3e9), int(3.1e9)) 
-        descricao = random.choice(sujeitos) +' '+ random.choice(verbos) +' '+ random.choice(objetos)
-        saldo = random.randint(1, 100)  
-        Material.objects.create(
-            codigo=codigo,
-            descricao=descricao,
-            saldo=saldo
-        )
-        print(f"material: {codigo} - {descricao[:50]}..") 
 
 
-def criar_consumo_material(n=10):
-    from .models import ConsumoMaterial
-    from .models import Material
-    import random
-    from datetime import timedelta
-    from django.utils import timezone
-    for _ in range(n):
-        codigoMaterial = random.randint(1, len(Material.objects.all()))  # material aleatroio
-        dataAleatoria = timezone.now() - timedelta(days=random.randint(1, 900))
-        ConsumoMaterial.objects.create(
-            materialUsado = Material.objects.get(id=codigoMaterial),
-            dataConsumo = dataAleatoria,
-        )
-        print(f"consumo de : {Material.objects.get(id=codigoMaterial)}") 
-
-#criar_material(500)
-#criar_consumo_material(500)
-### inserindo objetos na database FIM
+class IndexView(APIView):
+    def get(self, request):
+        return Response({"message": "API de Materiais JF"}, status=status.HTTP_200_OK)

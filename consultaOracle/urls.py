@@ -1,10 +1,10 @@
-from django.contrib import admin
 from django.urls import path, include
-from . import views
+from rest_framework.routers import DefaultRouter
+from .views import MaterialViewSet
 
-app_name = 'consultaOracle'  
+router = DefaultRouter()
+router.register(r"materiais", MaterialViewSet, basename="material")
 
 urlpatterns = [
-    path('', views.index, name='index_consultaOracle'),
-    path('materiaisPesquisa/', views.material_pesquisa, name='material_pesquisa'),
+    path("api/", include(router.urls)),
 ]
