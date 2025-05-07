@@ -1,47 +1,139 @@
 "use client"
 
-import React, { useState } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
+import { debounce } from 'lodash';
 import '../css/consulta.css';
 import { Search, X } from '@geist-ui/icons';
 
+interface Product {
+    codigo: string;
+    saldo: number;
+    descricao: string;
+}
+
 export const Consulta: React.FC = () => {
-    // Estados para os filtros
+    // Estados temporários para todos os inputs
+    const [tempQuantFilter, setTempQuantFilter] = useState('igual a');
+    const [tempCodFilter, setTempCodFilter] = useState('');
+    const [tempDescFilter, setTempDescFilter] = useState('');
+    const [tempQuantValue1, setTempQuantValue1] = useState('');
+    const [tempQuantValue2, setTempQuantValue2] = useState('');
+    const [tempPageInput, setTempPageInput] = useState('1');
+
+    // Estados reais dos filtros (usados na busca)
     const [quantFilter, setQuantFilter] = useState('igual a');
-    const [quantValue1, setQuantValue1] = useState('');
-    const [quantValue2, setQuantValue2] = useState('');
     const [codFilter, setCodFilter] = useState('');
     const [descFilter, setDescFilter] = useState('');
-    const [selectedProduct, setSelectedProduct] = useState<any>(null);
+    const [quantValue1, setQuantValue1] = useState('');
+    const [quantValue2, setQuantValue2] = useState('');
+
+    const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
     const [currentPage, setCurrentPage] = useState(1);
+    const [totalPages, setTotalPages] = useState(1);
+    const [products, setProducts] = useState<Product[]>([]);
+    const [loading, setLoading] = useState(true);
+    const [error, setError] = useState<string | null>(null);
 
-    // Dados mockados - substitua pelos seus dados reais
-    const products = Array.from({ length: 50 }, (_, i) => ({
-        cod: `COD${1000 + i}`,
-        saldo: Math.floor(Math.random() * 100),
-        descricao: `Descrição extensa do produto ${i + 1} que pode ocupar várias linhas e aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa. `.repeat(3)
-    }));
+    const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000/consultaOracle/api/materiais/';
+    const itemsPerPage = 10;
 
-    // Paginação
-    const itemsPerPage = 7;
-    const totalPages = Math.ceil(products.length / itemsPerPage);
-    const paginatedProducts = products.slice(
-        (currentPage - 1) * itemsPerPage,
-        currentPage * itemsPerPage
-    );
+    // Função para buscar produtos da API
+    const fetchProducts = useCallback(async () => {
+        setLoading(true);
+        setError(null);
+        try {
+            let url = `${API_URL}?page=${currentPage}&page_size=${itemsPerPage}`;
+
+            // Adicionar filtros à URL
+            if (codFilter) url += `&codigo=${codFilter}`;
+            if (descFilter) url += `&descricao=${descFilter}`;
+            if (quantValue1) {
+                let filterType = '';
+                switch (quantFilter) {
+                    case 'menor ou igual a': filterType = 'menorq'; break;
+                    case 'maior ou igual a': filterType = 'maiorq'; break;
+                    case 'igual a': filterType = 'igual'; break;
+                    case 'entre': filterType = 'entre'; break;
+                }
+                url += `&saldo_filter=${filterType}&saldo=${quantValue1}`;
+                if (quantFilter === 'entre' && quantValue2) {
+                    url += `&saldo_between_end=${quantValue2}`;
+                }
+            }
+
+            const response = await fetch(url, {
+                headers: {
+                    'Accept': 'application/json',
+                    'Content-Type': 'application/json'
+                }
+            });
+
+            if (!response.ok) {
+                throw new Error(`Erro HTTP: ${response.status}`);
+            }
+
+            const data = await response.json();
+
+            // Garante que apenas 7 itens serão exibidos
+            const limitedResults = data.results.slice(0, itemsPerPage);
+
+            setProducts(limitedResults);
+            setTotalPages(Math.ceil(data.count / itemsPerPage));
+        } catch (err) {
+            console.error('Erro ao buscar produtos:', err);
+            setError('Falha ao carregar os dados. Tente novamente mais tarde.');
+            setProducts([]);
+        } finally {
+            setLoading(false);
+        }
+    }, [currentPage, quantFilter, quantValue1, quantValue2, codFilter, descFilter, API_URL, itemsPerPage]);
+
+    // Debounce para a busca
+    useEffect(() => {
+        const debouncedFetch = debounce(fetchProducts, 500);
+        debouncedFetch();
+
+        // Cleanup
+        return () => {
+            debouncedFetch.cancel();
+        };
+    }, [fetchProducts]);
 
     // Função para aplicar filtros
     const applyFilters = () => {
-        // Implemente sua lógica de filtragem aqui
-        setCurrentPage(1); // Resetar para a primeira página
+        setCodFilter(tempCodFilter);
+        setDescFilter(tempDescFilter);
+        setQuantValue1(tempQuantValue1);
+        setQuantValue2(tempQuantValue2);
+        setQuantFilter(tempQuantFilter); // Atualiza o filtro real aqui
+
+        // Aplicar a página digitada
+        const page = Math.max(1, Math.min(totalPages, Number(tempPageInput) || 1));
+        setCurrentPage(page);
+        setTempPageInput(page.toString());
     };
 
     // Função para limpar filtros
     const clearFilters = () => {
+        setTempQuantFilter('igual a');
         setQuantFilter('igual a');
-        setQuantValue1('');
-        setQuantValue2('');
+        setTempQuantValue1('');
+        setTempQuantValue2('');
+        setTempCodFilter('');
+        setTempDescFilter('');
+        setTempPageInput('1');
         setCodFilter('');
         setDescFilter('');
+        setQuantValue1('');
+        setQuantValue2('');
+        setCurrentPage(1);
+    };
+
+    // Função para lidar com pressionar Enter nos inputs
+    const handleKeyPress = (e: React.KeyboardEvent) => {
+        if (e.key === 'Enter') {
+            applyFilters();
+        }
     };
 
     return (
@@ -49,7 +141,12 @@ export const Consulta: React.FC = () => {
             {/* Container de filtros superior */}
             <div className="filter-header">
                 <p id='mobile' className="instruction-text">Clique na linha para ver descrição completa</p>
-                <button className="filter-btn clear-btn" onClick={clearFilters} data-tooltip="Resetar filtros">
+                <button
+                    className="filter-btn clear-btn"
+                    onClick={clearFilters}
+                    data-tooltip="Resetar filtros"
+                    disabled={loading}
+                >
                     <div className="button-wrapper">
                         <div className="text">Limpar filtros</div>
                         <span className="icon">
@@ -62,7 +159,12 @@ export const Consulta: React.FC = () => {
                     </div>
                 </button>
                 <p className="instruction-text">Clique na linha para ver descrição completa</p>
-                <button className="filter-btn apply-btn" onClick={applyFilters} data-tooltip="Filtrar resultados">
+                <button
+                    className="filter-btn apply-btn"
+                    onClick={applyFilters}
+                    data-tooltip="Filtrar resultados"
+                    disabled={loading}
+                >
                     <div className="button-wrapper">
                         <div className="text">Aplicar filtro</div>
                         <span className="icon">
@@ -81,8 +183,9 @@ export const Consulta: React.FC = () => {
                     <label>Filtro de quantidade</label>
                     <div className="quantity-filter">
                         <select
-                            value={quantFilter}
-                            onChange={(e) => setQuantFilter(e.target.value)}
+                            value={tempQuantFilter}
+                            onChange={(e) => setTempQuantFilter(e.target.value)}
+                            disabled={loading}
                         >
                             <option value="menor ou igual a">Menor ou igual a</option>
                             <option value="maior ou igual a">Maior ou igual a</option>
@@ -92,19 +195,23 @@ export const Consulta: React.FC = () => {
 
                         <input
                             type="number"
-                            value={quantValue1}
-                            onChange={(e) => setQuantValue1(e.target.value)}
+                            value={tempQuantValue1}
+                            onChange={(e) => setTempQuantValue1(e.target.value)}
                             placeholder="Valor"
+                            disabled={loading}
+                            onKeyPress={handleKeyPress}
                         />
 
-                        {quantFilter === 'entre' && (
+                        {tempQuantFilter === 'entre' && (
                             <>
                                 <span className="and-text">E</span>
                                 <input
                                     type="number"
-                                    value={quantValue2}
-                                    onChange={(e) => setQuantValue2(e.target.value)}
+                                    value={tempQuantValue2}
+                                    onChange={(e) => setTempQuantValue2(e.target.value)}
                                     placeholder="Valor"
+                                    disabled={loading}
+                                    onKeyPress={handleKeyPress}
                                 />
                             </>
                         )}
@@ -115,12 +222,14 @@ export const Consulta: React.FC = () => {
                 <div className="filter-group">
                     <label id="code-filter">Filtro de código</label>
                     <div className="search-input">
-                        <Search size={16} className="search-icon" />
+                        <Search size={16} className="search-icon" onClick={applyFilters} />
                         <input
                             type="text"
-                            value={codFilter}
-                            onChange={(e) => setCodFilter(e.target.value)}
+                            value={tempCodFilter}
+                            onChange={(e) => setTempCodFilter(e.target.value)}
                             placeholder="Pesquisar..."
+                            disabled={loading}
+                            onKeyPress={handleKeyPress}
                         />
                     </div>
                 </div>
@@ -129,16 +238,28 @@ export const Consulta: React.FC = () => {
                 <div className="filter-group">
                     <label id="description-filter">Filtro de descrição</label>
                     <div className="search-input">
-                        <Search size={16} className="search-icon" />
+                        <Search size={16} className="search-icon" onClick={applyFilters} />
                         <textarea
-                            value={descFilter}
-                            onChange={(e) => setDescFilter(e.target.value)}
+                            value={tempDescFilter}
+                            onChange={(e) => setTempDescFilter(e.target.value)}
                             placeholder="Pesquisar..."
                             rows={1}
+                            disabled={loading}
+                            onKeyPress={handleKeyPress}
                         />
                     </div>
                 </div>
             </div>
+
+            {/* Mensagem de erro */}
+            {error && (
+                <div className="error-message">
+                    {error}
+                    <button onClick={fetchProducts} className="retry-button">
+                        Tentar novamente
+                    </button>
+                </div>
+            )}
 
             {/* Tabela de resultados */}
             <div className="results-table">
@@ -148,65 +269,108 @@ export const Consulta: React.FC = () => {
                     <div className="col-desc">Descrição</div>
                 </div>
 
-                {paginatedProducts.map((product, index) => (
-                    <div
-                        key={product.cod}
-                        className={`table-row ${index % 2 === 0 ? 'even' : 'odd'}`}
-                        onClick={() => setSelectedProduct(product)}
-                    >
-                        <div className="col-cod">{product.cod}</div>
-                        <div className="col-saldo">{product.saldo}</div>
-                        <div className="col-desc" title={product.descricao}>
-                            {product.descricao.length > 100
-                                ? `${product.descricao.substring(0, 200)}...`
-                                : product.descricao}
-                        </div>
+                {loading ? (
+                    <div className="loading-container">
+                        <div className="loading-spinner"></div>
+                        <p>Carregando dados...</p>
                     </div>
-                ))}
+                ) : products.length === 0 ? (
+                    <div className="no-results">
+                        Nenhum resultado encontrado com os filtros atuais
+                    </div>
+                ) : (
+                    products.map((product, index) => (
+                        <div
+                            key={`${product.codigo}-${index}`}
+                            className={`table-row ${index % 2 === 0 ? 'even' : 'odd'}`}
+                            onClick={() => setSelectedProduct(product)}
+                        >
+                            <div className="col-cod">{product.codigo}</div>
+                            <div className="col-saldo">{product.saldo}</div>
+                            <div className="col-desc" title={product.descricao}>
+                                {product.descricao.length > 100
+                                    ? `${product.descricao.substring(0, 200)}...`
+                                    : product.descricao}
+                            </div>
+                        </div>
+                    ))
+                )}
             </div>
 
             {/* Paginação */}
-            <div className="pagination">
-                <button onClick={() => setCurrentPage(1)} disabled={currentPage === 1}>
-                    &lt;&lt;
-                </button>
-                <button onClick={() => setCurrentPage(p => Math.max(1, p - 1))} disabled={currentPage === 1}>
-                    &lt;
-                </button>
-
-                <span className="page-input">
-                    Página <input
-                        type="number"
-                        min="1"
-                        max={totalPages}
-                        value={currentPage}
-                        onChange={(e) => {
-                            const page = Math.max(1, Math.min(totalPages, Number(e.target.value)));
-                            setCurrentPage(page);
+            {products.length > 0 && (
+                <div className="pagination">
+                    <button
+                        onClick={() => {
+                            setCurrentPage(1);
+                            setTempPageInput('1');
                         }}
-                    /> de {totalPages}
-                </span>
+                        disabled={currentPage === 1 || loading}
+                    >
+                        &lt;&lt;
+                    </button>
+                    <button
+                        onClick={() => {
+                            const newPage = Math.max(1, currentPage - 1);
+                            setCurrentPage(newPage);
+                            setTempPageInput(newPage.toString());
+                        }}
+                        disabled={currentPage === 1 || loading}
+                    >
+                        &lt;
+                    </button>
 
-                <button onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))} disabled={currentPage === totalPages}>
-                    &gt;
-                </button>
-                <button onClick={() => setCurrentPage(totalPages)} disabled={currentPage === totalPages}>
-                    &gt;&gt;
-                </button>
-            </div>
+                    <span className="page-input">
+                        Página <input
+                            type="number"
+                            min="1"
+                            max={totalPages}
+                            value={tempPageInput}
+                            onChange={(e) => setTempPageInput(e.target.value)}
+                            onKeyPress={handleKeyPress}
+                            disabled={loading}
+                        /> de {totalPages}
+                    </span>
+
+                    <button
+                        onClick={() => {
+                            const newPage = Math.min(totalPages, currentPage + 1);
+                            setCurrentPage(newPage);
+                            setTempPageInput(newPage.toString());
+                        }}
+                        disabled={currentPage === totalPages || loading}
+                    >
+                        &gt;
+                    </button>
+                    <button
+                        onClick={() => {
+                            setCurrentPage(totalPages);
+                            setTempPageInput(totalPages.toString());
+                        }}
+                        disabled={currentPage === totalPages || loading}
+                    >
+                        &gt;&gt;
+                    </button>
+                </div>
+            )}
 
             {/* Botão voltar */}
             <div className="footer">
-                <button className="back-btn"> {'<<'} Voltar</button>
+                <button className="back-btn" disabled={loading}>
+                    {'<<'} Voltar
+                </button>
             </div>
 
             {/* Modal de detalhes */}
             {selectedProduct && (
-                <div className="modal-overlay">
-                    <div className="modal">
+                <div className="modal-overlay" onClick={() => setSelectedProduct(null)}>
+                    <div className="modal" onClick={(e) => e.stopPropagation()}>
                         <div className="modal-header">
                             <h3 id="product">Produto escolhido</h3>
-                            <button onClick={() => setSelectedProduct(null)}>
+                            <button
+                                onClick={() => setSelectedProduct(null)}
+                                aria-label="Fechar modal"
+                            >
                                 <X size={20} />
                             </button>
                         </div>
@@ -218,14 +382,14 @@ export const Consulta: React.FC = () => {
                             </div>
                             <div id="white" className="modal-row">
                                 <span>Código:</span>
-                                <span>{selectedProduct.cod}</span>
+                                <span>{selectedProduct.codigo}</span>
                             </div>
                             <div className="modal-row full-width">
                                 <span id='last'>Descrição:</span>
                                 <textarea
                                     value={selectedProduct.descricao}
                                     readOnly
-
+                                    aria-label="Descrição completa do produto"
                                 />
                             </div>
                         </div>
