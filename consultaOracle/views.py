@@ -38,6 +38,7 @@ def material_pesquisa(request):
     from .models import Material, ConsumoMaterial
     from django.db.models import OuterRef, Subquery, F
     from django.utils import timezone
+    from django.contrib import messages
     from django.db.models import ExpressionWrapper, fields
 
     # Fazer a logica de login => Não está loggado -> redirect para outra página
@@ -63,12 +64,15 @@ def material_pesquisa(request):
     ordemOrdenacao = request.GET.get('ordemOrdenacao', 'c')
     campoOrdenacao = request.GET.get('campoOrdenacao', 'codigo')
 
-    materials = Material.objects.all()
+    materials = Material.objects.filter(codigo__startswith=30)
 
     # Filtros
     ## Filtro por codigo (numerico)
     if codigo:
-        materials = materials.filter(codigo__startswith=codigo)
+        if len(codigo)>=2 and (codigo[0] == '3' and codigo[1] == '0'):
+            materials = materials.filter(codigo__startswith=codigo)
+        else:
+            messages.error(request, "O código de materiais deve começar com '30'.")
     ## Filtro por descrição (string)
     if descricao:
         materials = materials.filter(descricao__icontains=descricao)
@@ -135,7 +139,7 @@ def criar_material(n=10):
     verbos = ["corre", "estuda", "fala", "viaja", "compreende", "brinca", "diz", "ajuda"]
     objetos = ["na rua", "com os amigos", "no trabalho", "na escola", "para casa", "no parque", "para o futuro", "ao mundo"]
     for _ in range(n):
-        codigo = random.randint(1000000000, 9999999999) 
+        codigo = random.randint(int(3e9), int(3.1e9)) 
         descricao = random.choice(sujeitos) +' '+ random.choice(verbos) +' '+ random.choice(objetos)
         saldo = random.randint(1, 100)  
         Material.objects.create(
@@ -161,6 +165,6 @@ def criar_consumo_material(n=10):
         )
         print(f"consumo de : {Material.objects.get(id=codigoMaterial)}") 
 
-#criar_material(100)
-#criar_consumo_material(100)
+#criar_material(500)
+#criar_consumo_material(500)
 ### inserindo objetos na database FIM
