@@ -17,3 +17,5 @@ tzdata==2025.2
 urllib3==2.4.0
 django-cors-headers==4.7.0
 djangorestframework==3.16.0
+gunicorn==21.2.0
+whitenoise==6.6.0
