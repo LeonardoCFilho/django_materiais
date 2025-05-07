@@ -14,7 +14,7 @@ export const NavMenu: React.FC = () => {
             <div className="header-container">
                 <div className="logo-container">
                     <Link href="/" className="logo">
-                        LOGO
+                        Consulta de Materiais
                     </Link>
                 </div>
 
