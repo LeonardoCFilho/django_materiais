@@ -2,4 +2,5 @@
 /venv
 *.log
 *.pot
-*.pyc
+*.pyc]
+**/__pycache__

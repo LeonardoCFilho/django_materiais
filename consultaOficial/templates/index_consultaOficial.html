@@ -1,0 +1,37 @@
+<!DOCTYPE html>
+<html lang="en">
+    <head>
+        <meta charset="UTF-8">
+        <title>Index consultaOracle</title>
+    </head>
+    <body>
+        <p>Links</p>
+        <a class="dynamicLink" href="#">Pagina com pesquisa básica</a><br>
+       <!--  <a class="dynamicLink" href="#">Pagina com pesquisa básica + permissão alta</a><br> -->
+    </body>
+</html>
+
+<script type="text/javascript">
+    function getBaseUrl() {
+        return "{{ request.scheme }}://{{ request.get_host }}";
+    }
+
+    document.addEventListener("DOMContentLoaded", function() {
+        var dynamicLinks = document.querySelectorAll(".dynamicLink");
+        dynamicLinks.forEach(function(link, index) {
+            let baseUrl = getBaseUrl();
+            let queryParams = '';
+            switch(index) {
+                case 0:
+                    queryParams = "/materiaisPesquisa/";  
+                    break;
+                case 1:
+                    queryParams = "/materiaisPesquisa/?flagUltimoUso=true";   
+                    break;
+                default:
+                    queryParams = "/";
+            }
+            link.href = baseUrl + queryParams;
+        });
+    });
+</script>

@@ -1,0 +1,296 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Lista de Materiais</title>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.0/dist/css/bootstrap.min.css">
+    <style>
+        /* Container for the error message */
+        .message-container {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            position: fixed;
+            top: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            z-index: 1000;
+            width: auto;
+            max-width: 80%;
+        }
+
+        .alert-error {
+            background-color: #f8d7da; /* Soft red */
+            color: #721c24; /* Darker red */
+            border: 1px solid #f5c6cb; /* Light red border */
+            border-radius: 8px;
+            padding: 20px 30px;
+            font-size: 16px;
+            font-weight: bold;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+            animation: slideIn 0.5s ease-in-out; /* Add animation */
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            width: 100%;
+            max-width: 500px;
+        }
+
+        .alert-error .icon {
+            margin-right: 15px;
+            font-size: 24px;
+        }
+
+        .alert-error .close-btn {
+            background: none;
+            border: none;
+            font-size: 20px;
+            font-weight: bold;
+            color: #721c24;
+            cursor: pointer;
+            transition: color 0.3s;
+        }
+
+        .alert-error .close-btn:hover {
+            color: #f5c6cb; /* Lighten on hover */
+        }
+
+        /* Keyframe animation for slide-in effect */
+        @keyframes slideIn {
+            0% {
+                transform: translateX(-50%) translateY(-20px);
+                opacity: 0;
+            }
+            100% {
+                transform: translateX(-50%) translateY(0);
+                opacity: 1;
+            }
+        }
+    </style>
+</head>
+
+<body>
+    <div class="container mt-4">
+        <h1 class="mb-4">Lista de Materiais</h1>
+
+        {% if messages %}
+        <div class="message-container">
+          {% for message in messages %}
+            {% if message.level == 40 %} <!-- Check if it's an error message -->
+              <div class="alert-error">
+                <span class="icon">&#x26A0;</span> <!-- Warning Icon -->
+                <span>{{ message }}</span>
+                <button class="close-btn" onclick="this.closest('.alert-error').style.display='none';">✖</button>
+              </div>
+            {% endif %}
+          {% endfor %}
+        </div>
+        {% endif %}
+
+        <!-- Formulário de Filtro -->
+        <form method="GET" action="{% url 'consultaOracle:material_pesquisa' %}">
+            <div class="row mb-4">
+                <!-- Filtro de Código -->
+                <div class="col-md-4">
+                    <label for="codigo_input" class="form-label">Filtrar por Código (Número):</label>
+                    <input type="number" id="codigo_input" name="codigo" class="form-control" placeholder="Digite o Código"
+                        min="0" value="{{ request.GET.codigo }}">
+                </div>
+
+                <!-- Filtro de Descrição -->
+                <div class="col-md-4">
+                    <label for="descricao_input" class="form-label">Filtrar por Descrição (Texto):</label>
+                    <input type="text" id="descricao_input" name="descricao" class="form-control"
+                        placeholder="Digite a Descrição" value="{{ request.GET.descricao }}">
+                </div>
+
+                <!-- Filtro de Saldo -->
+                <div class="col-md-4">
+                    <label for="saldo_input" class="form-label">Filtrar por Saldo (Número):</label>
+                    <div class="input-group">
+                        <!-- Dropdown de Saldo com opções Menor que, Igual a, Maior que -->
+                        <select class="form-select" name="saldo_filter" id="saldo_input">
+                            <option value="" disabled selected>Escolha a Condição</option>
+                            <option value="menorq" {% if request.GET.saldo_filter == 'menorq' %}selected{% endif %}>Menor que</option>
+                            <option value="igual" {% if request.GET.saldo_filter == 'igual' %}selected{% endif %}>Igual a</option>
+                            <option value="maiorq" {% if request.GET.saldo_filter == 'maiorq' %}selected{% endif %}>Maior que</option>     
+                            <option value="entre" {% if request.GET.saldo_filter == 'entre' %}selected{% endif %}>Entre</option>                            
+                        </select>
+                        <div class="input-group-append">
+                            <input type="number" name="saldo" id="saldo_value" class="form-control" min="0"
+                                placeholder="Digite o valor do Saldo" value="{{ request.GET.saldo }}">
+                        </div>
+                        <div id="saldo_between_input" style="display: none;">
+                            <input type="number" name="saldo_between_end" id="saldo_between_end" class="form-control" min="0"
+                                   placeholder="Digite o valor final" value="{{ request.GET.saldo_between_end }}">
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Filtro de ultimoUso -->
+                {% if flagUltimoUso %}
+                <div class="col-md-4">
+                    <label for="ultimoUso_input" class="form-label">Filtrar por Último Uso (Número):</label>
+                    <div class="input-group">
+                        <!-- Dropdown de Último Uso com opções Menor que, Igual a, Maior que -->
+                        <select class="form-select" name="ultimoUso_filter" id="ultimoUso_input">
+                            <option value="" disabled selected>Escolha a Condição</option>
+                            <option value="menorq" {% if request.GET.ultimoUso_filter == 'menorq' %}selected{% endif %}>Menor que</option>
+                            <option value="igual" {% if request.GET.ultimoUso_filter == 'igual' %}selected{% endif %}>Igual a</option>
+                            <option value="maiorq" {% if request.GET.ultimoUso_filter == 'maiorq' %}selected{% endif %}>Maior que</option>
+                            <option value="entre" {% if request.GET.ultimoUso_filter == 'entre' %}selected{% endif %}>Entre</option>                            
+                        </select>
+                        <div class="input-group-append">
+                            <input type="number" name="ultimoUso" id="ultimoUso_value" class="form-control" min="0"
+                                placeholder="Digite o valor do período em meses" value="{{ request.GET.ultimoUso }}">
+                        </div>
+                        <div id="ultimoUso_between_input" style="display: none;">
+                            <input type="number" name="ultimoUso_between_end" id="ultimoUso_between_end" class="form-control" min="0"
+                                   placeholder="Digite o valor final" value="{{ request.GET.ultimoUso_between_end }}">
+                        </div>
+                    </div>
+                </div>
+                {% endif %}
+
+                <!-- Determinar o atributo de ordenação -->
+                <div class="col-md-4">
+                    <label for="campoOrdenacao_input" class="form-label">Ordenação por Atributos:</label>
+                    <div class="input-group">
+                        <select class="form-select" name="campoOrdenacao" id="campoOrdenacao_input">
+                            <option value="" disabled selected>Escolha a Condição</option>
+                            <option value="codigo" {% if request.GET.saldo_filter == 'codigo' %}selected{% endif %}>Código</option>
+                            <option value="descricao" {% if request.GET.saldo_filter == 'descricao' %}selected{% endif %}>Descrição</option>
+                            <option value="saldo" {% if request.GET.saldo_filter == 'saldo' %}selected{% endif %}>Saldo</option>     
+                            <option value="ultimoUso_meses" {% if request.GET.saldo_filter == 'ultimoUso_meses' %}selected{% endif %}>Último uso</option>                            
+                        </select>
+                    </div>
+                </div>
+            
+                <!-- Checkbox de Ordenação -->
+                <div class="col-md-4">
+                    <label for="ordemOrdenacao_input" class="form-label">Ordem:</label>
+                        <select class="form-select" name="ordemOrdenacao" id="ordemOrdenacao_input">
+                            <option value="" disabled selected>Escolha a Condição</option>
+                            <option value="d" {% if request.GET.saldo_filter == 'd' %}selected{% endif %}>Decrescente</option>
+                            <option value="c" {% if request.GET.saldo_filter == 'c' %}selected{% endif %}>Crescente</option>                    
+                        </select>
+                </div>
+            </div>
+
+            <!-- Botão de Enviar -->
+            <button type="submit" class="btn btn-primary">Filtrar</button>
+        </form>
+
+        <form method="GET" action="{% url 'consultaOracle:material_pesquisa' %}">
+            <button type="submit" class="btn btn-secondary">Limpar filtros</button>
+        </form>
+
+        <!-- Tabela para exibir os materiais -->
+        <table class="table table-bordered mt-4">
+            <thead>
+                <tr>
+                    <th>Código</th>
+                    <th>Descrição</th>
+                    <th>Saldo</th>
+                    {% if flagUltimoUso %}
+                    <th>Último Uso</th>
+                    {% endif %}
+                </tr>
+            </thead>
+            <tbody>
+                {% for material in page_obj %}
+                <tr>
+                    <td>{{ material.codigo }}</td>
+                    <td>{{ material.descricao }}</td>
+                    <td>{{ material.saldo }}</td>
+                    {% if flagUltimoUso %}
+                    <td>{{ material.ultimoUso_meses }}
+                        <!-- Adicionar textinho quando tiver numero -->
+                        {% if material.ultimoUso_meses != None %}
+                         meses atrás
+                        {% endif %}
+                    </td>
+                    {% endif %}
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+
+        <!-- Controles de paginação -->
+        <nav aria-label="Navegação de página">
+            <ul class="pagination">
+                {% if page_obj.has_previous %}
+                <li class="page-item">
+                    <a class="page-link" href="?page=1" aria-label="Primeira">
+                        <span aria-hidden="true">&laquo;&laquo;</span>
+                    </a>
+                </li>
+                <li class="page-item">
+                    <a class="page-link" href="?page={{ page_obj.previous_page_number }}" aria-label="Anterior">
+                        <span aria-hidden="true">&laquo;</span>
+                    </a>
+                </li>
+                {% endif %}
+
+                <li class="page-item disabled">
+                    <span class="page-link">
+                        Página {{ page_obj.number }} de {{ page_obj.paginator.num_pages }}
+                    </span>
+                </li>
+
+                {% if page_obj.has_next %}
+                <li class="page-item">
+                    <a class="page-link" href="?page={{ page_obj.next_page_number }}" aria-label="Próxima">
+                        <span aria-hidden="true">&raquo;</span>
+                    </a>
+                </li>
+                <li class="page-item">
+                    <a class="page-link" href="?page={{ page_obj.paginator.num_pages }}" aria-label="Última">
+                        <span aria-hidden="true">&raquo;&raquo;</span>
+                    </a>
+                </li>
+                {% endif %}
+            </ul>
+        </nav>
+    </div>
+</body>
+
+</html>
+
+<script>
+    document.addEventListener('DOMContentLoaded', function () {
+        // Handle Saldo "Between"
+        const saldoSelect = document.getElementById('saldo_input');
+        const saldoBetweenInput = document.getElementById('saldo_between_input');
+        if (saldoSelect.value === 'entre') {
+            saldoBetweenInput.style.display = 'block';
+        } else {
+            saldoBetweenInput.style.display = 'none';
+        }
+        saldoSelect.addEventListener('change', function () {
+            if (this.value === 'entre') {
+                saldoBetweenInput.style.display = 'block';
+            } else {
+                saldoBetweenInput.style.display = 'none';
+            }
+        });
+
+        // Handle Último Uso "Between"
+        const ultimoUsoSelect = document.getElementById('ultimoUso_input');
+        const ultimoUsoBetweenInput = document.getElementById('ultimoUso_between_input');
+        if (ultimoUsoSelect.value === 'entre') {
+            ultimoUsoBetweenInput.style.display = 'block';
+        } else {
+            ultimoUsoBetweenInput.style.display = 'none';
+        }
+        ultimoUsoSelect.addEventListener('change', function () {
+            if (this.value === 'entre') {
+                ultimoUsoBetweenInput.style.display = 'block';
+            } else {
+                ultimoUsoBetweenInput.style.display = 'none';
+            }
+        });
+    });
+</script>
