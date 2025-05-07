@@ -8,4 +8,4 @@ ir pra pasta de frontend
 npm run build
 
 ## 4º Etapa
-npm run dev
+npm run dev(garanta que o backend da branch main também esteja rodando pelo runserver)
