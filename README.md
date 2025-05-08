@@ -4,7 +4,7 @@
 - Interpretador python  (desenvolvido na versão 3.12.3)  
 
 ## Como usar
-1. git clone https://github.com/LeonardoCFilho/django_materiais.git TesteOracle
+1. git clone --branch TesteOracle https://github.com/LeonardoCFilho/django_materiais.git
 2. mude para a pasta TesteOracle
 3.  
   **Crie e ative um ambiente virtual (Windows)**
