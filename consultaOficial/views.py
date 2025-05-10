@@ -7,57 +7,50 @@ def index(request):
 def fetch_data(argsQuery):
     import requests
     import json
-    from django.conf import settings
-    from django.http import JsonResponse
+    import os
     from dotenv import load_dotenv
 
-    load_dotenv()  
-    # Get DB credentials from environment variables
-    db_user = settings.DB_USER
-    db_password = settings.DB_PASSWORD
+    # Carrega variáveis do .env
+    load_dotenv()
+
+    # Lê usuário e senha do banco
+    db_user = os.getenv("DB_USER")
+    db_password = os.getenv("DB_PASSWORD")
 
     if not db_user or not db_password:
-        return JsonResponse({"error": "Database credentials are missing."}, status=400)
+        raise ValueError("As variáveis DB_USER e DB_PASSWORD devem estar definidas no arquivo .env")
 
-    # External API endpoint and headers
-    url = 'http://172.22.3.31:5011/api/query'
+    # Configurações da requisição
+    url = 'http://172.22.3.197:5011/api/query'
     headers = {'Content-Type': 'application/json'}
 
-    # The SQL query to be sent to the API
+    # Nova consulta SQL
     query = f"""
     SELECT CO_MAT,
            DE_MAT,
            QT_SALDO_ATU
     FROM SICAM.MATERIAL
-    WHERE TO_CHAR(CO_MAT) LIKE '30%'
-      AND QT_SALDO_ATU > 0
-    ORDER BY DE_MAT
     FETCH FIRST {argsQuery['numLinhas']} ROWS ONLY
     """
 
-    # Prepare the request payload
+    # Corpo da requisição
     payload = {
         'db_user': db_user,
         'db_password': db_password,
         'sql_query': query
     }
 
+    # Envio da requisição
     try:
-        # Send the request to the external API
         response = requests.post(url, headers=headers, data=json.dumps(payload))
-
-        # If the request is successful
         if response.status_code == 200:
             data = response.json()
-
-            return JsonResponse(data, safe=False)
+            print(data)
         else:
-            # If there's an error, return an error message
             error_data = response.json()
-            return JsonResponse({"error": error_data.get('error', 'Failed to fetch data.')}, status=500)
-
+            print(f"Erro: {error_data.get('error', 'Erro ao executar a consulta.')}")
     except Exception as e:
-        return JsonResponse({"error": str(e)}, status=500)
+        print(f"Erro: {str(e)}")
 
 def SQLparaList(data):
     # Salvar o erro
@@ -72,7 +65,7 @@ def SQLparaList(data):
 
     for linha in data['rows']: # Aparentemente esse é o nome retornado, teria que confimar
         novaListDict.append({
-            'codigo': linha[0],
+            'codigo': str(linha[0]),
             'descricao': linha[1],
             'saldo': linha[2],
         })
