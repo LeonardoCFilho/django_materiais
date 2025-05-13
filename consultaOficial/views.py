@@ -30,6 +30,7 @@ def fetch_data(argsQuery):
            DE_MAT,
            QT_SALDO_ATU
     FROM SICAM.MATERIAL
+    WHERE TO_CHAR(CO_MAT) LIKE '30%'
     FETCH FIRST {argsQuery['numLinhas']} ROWS ONLY
     """
 
@@ -69,7 +70,7 @@ def SQLparaList(data):
         novaListDict.append({
             'codigo': str(linha[0]),
             'descricao': linha[1],
-            'saldo': linha[2],
+            'saldo': int(linha[2]),
         })
 
     return novaListDict
@@ -120,6 +121,7 @@ def material_pesquisa(request):
             materials = list(filter(lambda material: descricao.lower() in material['descricao'].lower(), materials))
         ## Filtro por saldo (qtd)
         if saldo_filter and saldo:
+            saldo = int(saldo)
             match saldo_filter:
                 case 'menorq': # <
                     materials = list(filter(lambda material: material['saldo'] < saldo, materials))
