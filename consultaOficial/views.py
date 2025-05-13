@@ -46,9 +46,11 @@ def fetch_data(argsQuery):
         if response.status_code == 200:
             data = response.json()
             print(data)
+            return data
         else:
             error_data = response.json()
             print(f"Erro: {error_data.get('error', 'Erro ao executar a consulta.')}")
+            return f"Erro: {error_data.get('error', 'Erro ao executar a consulta.')}"
     except Exception as e:
         print(f"Erro: {str(e)}")
 
