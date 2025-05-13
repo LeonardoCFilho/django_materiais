@@ -46,23 +46,23 @@ def fetch_data(argsQuery):
         response = requests.post(url, headers=headers, data=json.dumps(payload))
         if response.status_code == 200:
             data = response.json()
-            print(data)
+            #print(data)
             return data
         else:
             error_data = response.json()
-            print(f"Erro: {error_data.get('error', 'Erro ao executar a consulta.')}")
+            #print(f"Erro: {error_data.get('error', 'Erro ao executar a consulta.')}")
             return f"Erro: {error_data.get('error', 'Erro ao executar a consulta.')}"
     except Exception as e:
         print(f"Erro: {str(e)}")
+        return e
 
 def SQLparaList(data):
     # Salvar o erro
-    if 'error' in data:
+    if 'error' in data or isinstance(data, Exception):
         from datetime import datetime
         with open("ErrosBD.txt",'a',encoding='UTF-8') as file:
             file.write(f"""f{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n{data['error']}\n\n""")
         return None 
-
 
     novaListDict = []
 
@@ -74,6 +74,21 @@ def SQLparaList(data):
         })
 
     return novaListDict
+
+# Temp para testar o frontEnd
+def criaListaTeste():
+    import random
+    lista = []
+    sujeitos = ["O cachorro", "A garota", "O professor", "A mãe", "O carro", "O cientista", "O político", "A estrela"]
+    verbos = ["corre", "estuda", "fala", "viaja", "compreende", "brinca", "diz", "ajuda"]
+    objetos = ["na rua", "com os amigos", "no trabalho", "na escola", "para casa", "no parque", "para o futuro", "ao mundo"]
+    for _ in range(100):
+        lista.append({
+            'codigo': str(random.randint(int(3e9), int(3.1e9))),
+            'descricao': random.choice(sujeitos) +' '+ random.choice(verbos) +' '+ random.choice(objetos),
+            'saldo': random.randint(1, 100),
+        })
+    return lista
 
 ### lista com filtro 
 def material_pesquisa(request):
@@ -106,6 +121,11 @@ def material_pesquisa(request):
         'saldo': None,
         'numLinhas': 100,
     }
+
+    # para teste do frontend
+    #materials = criaListaTeste()
+
+    # Acesso ao banco de dados oficial
     materials = SQLparaList(fetch_data(argsQuery))
 
     if materials:
