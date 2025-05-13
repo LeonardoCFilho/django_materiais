@@ -113,7 +113,7 @@ def material_pesquisa(request):
         ## Filtro por codigo (numerico)
         if codigo:
             if codigo and codigo.startswith('30'):
-                materials = list(filter(lambda material: material['codigo'].startswith(codigo), materials))
+                materials = list(filter(lambda material: material['codigo'].strip().startswith(codigo.strip()), materials))
             else:
                 messages.error(request, "O código de materiais deve começar com '30'.")
         ## Filtro por descrição (string)
