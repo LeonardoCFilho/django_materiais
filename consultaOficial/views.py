@@ -12,7 +12,8 @@ import re
 def index(request):
     return render(request, "index_consultaOficial.html")
 
-
+##
+### API de acesso ao banco de dados Oracle
 def criaQueryDatabase(filters=None, order_by=None):
     if DatabaseTeste:
         database = "consultaOficial_databaseteste"
@@ -40,7 +41,6 @@ def criaQueryDatabase(filters=None, order_by=None):
 
     # query += " FETCH FIRST 1000 ROWS ONLY" # temp
     return query
-
 
 # View to fetch data from the external API
 def fetch_data(queryCriada, flag_TestarConexaoDatabase=False):
@@ -138,7 +138,6 @@ def sanitize_input(input_str):
         return sanitized
     return input_str
 
-
 def intValido(valor) -> bool:
     try:
         int(valor)
@@ -178,13 +177,16 @@ def criarFiltros(param:dict):
     return [filters, order_by]
 
 # Universalizando o uso da API
-def processoAcessoOracle(paramGeral:dict):
+def acessarDatabaseOracle(paramGeral:dict):
     SQL_parcial = criarFiltros(paramGeral)
     query = criaQueryDatabase(SQL_parcial[0], SQL_parcial[1])
     materials = fetch_data(query)
     return SQLparaList(materials)
+### API de acesso ao banco de dados Oracle - END
+##
 
-### lista com filtro
+#
+### Prova de conceito de pesquisa de materiais
 def material_pesquisa(request):
     from django.core.paginator import Paginator
     from django.contrib import messages
@@ -201,13 +203,14 @@ def material_pesquisa(request):
     }
 
     # Acesso ao banco de dados
-    materials = processoAcessoOracle(param)
+    materials = acessarDatabaseOracle(param)
 
     # Verifique se materials é None antes de continuar
     if materials is None:
         messages.error(request, "Erro ao carregar o banco de dados")
         return render(request, "material_pesquisa.html", {"page_obj": []})
 
+    # materials existe => renderizar a pagina com a lista
     # Paginação
     try:
         paginator = Paginator(materials, 20)
@@ -221,7 +224,8 @@ def material_pesquisa(request):
     except Exception as e:
         messages.error(request, f"Erro na paginação: {str(e)}")
         return render(request, "material_pesquisa.html", {"page_obj": []})
-
+### Prova de conceito de pesquisa de materiais - END
+#
 
 ### lista com filtro FIM
 @require_GET
@@ -243,7 +247,7 @@ def material_pesquisa2(request):
         }
 
         # Acessando o banco de dados recebe uma lista ou None(caso de erro)
-        queryset = processoAcessoOracle(param)
+        queryset = acessarDatabaseOracle(param)
 
         # Paginação
         paginator = Paginator(queryset, page_size)
