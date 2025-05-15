@@ -3,71 +3,92 @@ from django.shortcuts import render
 def index(request):
     return render(request, 'index_consultaOficial.html')
 
-# View to fetch data from the external API
-def fetch_data(filters = None, order_by = None, flag_TestarConexaoDatabase = False):
-    import requests
-    import json
-    import os
-    from dotenv import load_dotenv
-
-    # Carrega variáveis do .env
-    load_dotenv()
-
-    # Lê usuário e senha do banco
-    db_user = os.getenv("DB_USER")
-    db_password = os.getenv("DB_PASSWORD")
-
-    if not db_user or not db_password:
-        raise ValueError("As variáveis DB_USER e DB_PASSWORD devem estar definidas no arquivo .env")
-
-    # Configurações da requisição
-    url = 'http://172.22.3.197:5011/api/query'
-    headers = {'Content-Type': 'application/json'}
-
-    # Adicionando a condicional para ou filtrar ou so testar a conexao
-    if not flag_TestarConexaoDatabase:
-        # Nova consulta SQL
-        query = f"""
-        SELECT CO_MAT,
-               DE_MAT,
-               QT_SALDO_ATU
-        FROM SICAM.MATERIAL
-        WHERE TO_CHAR(CO_MAT) LIKE '30%' 
-        """
-        if filters and len(filters) > 0: # Filters vai ser uma string com todos os filtros (vai concatenar no WHERE)
-            query += filters
-
-        if order_by: # Por segurança
-            query += order_by
-
-        query += " FETCH FIRST 1000 ROWS ONLY" # temp
-
+DatabaseTeste = True
+def criaQueryDatabase(filters = None, order_by = None):
+    if DatabaseTeste:
+        database = "consultaOficial_databaseteste"
     else:
-        # So testar a conexao
-        query = "SELECT USER FROM DUAL;"
-    #print(query) # debug
+        database = "SICAM.MATERIAL"
+    query = f"""
+    SELECT CO_MAT,
+           DE_MAT,
+           QT_SALDO_ATU
+    FROM {database}
+    """
 
-    # Corpo da requisição
-    payload = {
-        'db_user': db_user,
-        'db_password': db_password,
-        'sql_query': query
-    }
+    if DatabaseTeste:
+        query += "WHERE CAST(CO_MAT AS TEXT) LIKE '30%'"
+    else:
+        query += "WHERE TO_CHAR(CO_MAT) LIKE '30%'"
 
-    # Envio da requisição
-    try:
-        response = requests.post(url, headers=headers, data=json.dumps(payload))
-        if response.status_code == 200:
-            data = response.json()
-            #print(data)
-            return data
+    if filters and len(filters) > 0: # Filters vai ser uma string com todos os filtros (vai concatenar no WHERE)
+        query += filters
+
+    if order_by: # Por segurança
+        query += order_by
+    
+    #query += " FETCH FIRST 1000 ROWS ONLY" # temp
+    return query
+
+# View to fetch data from the external API
+def fetch_data(queryCriada, flag_TestarConexaoDatabase = False):
+    if DatabaseTeste:
+        temp = {}
+        from django.db import connection
+        with connection.cursor() as cursor:
+            cursor.execute(queryCriada)
+            temp['rows'] = cursor.fetchall()  # Fetch all rows
+        return temp
+    else:
+        import requests
+        import json
+        import os
+        from dotenv import load_dotenv
+
+        # Carrega variáveis do .env
+        load_dotenv()
+
+        # Lê usuário e senha do banco
+        db_user = os.getenv("DB_USER")
+        db_password = os.getenv("DB_PASSWORD")
+
+        if not db_user or not db_password:
+            raise ValueError("As variáveis DB_USER e DB_PASSWORD devem estar definidas no arquivo .env")
+
+        # Configurações da requisição
+        url = 'http://172.22.3.197:5011/api/query'
+        headers = {'Content-Type': 'application/json'}
+
+        # Adicionando a condicional para ou filtrar ou so testar a conexao
+        if not flag_TestarConexaoDatabase:
+            # Nova consulta SQL
+            query = queryCriada
         else:
-            error_data = response.json()
-            #print(f"Erro: {error_data.get('error', 'Erro ao executar a consulta.')}")
-            return f"Erro: {error_data.get('error', 'Erro ao executar a consulta.')}"
-    except Exception as e:
-        print(f"Erro: {str(e)}")
-        return e
+            # So testar a conexao
+            query = "SELECT USER FROM DUAL;"
+        #print(query) # debug
+
+        # Corpo da requisição
+        payload = {
+            'db_user': db_user,
+            'db_password': db_password,
+            'sql_query': query
+        }
+
+        # Envio da requisição
+        try:
+            response = requests.post(url, headers=headers, data=json.dumps(payload))
+            if response.status_code == 200:
+                data = response.json()
+                #print(data)
+                return data
+            else:
+                error_data = response.json()
+                #print(f"Erro: {error_data.get('error', 'Erro ao executar a consulta.')}")
+                return f"Erro: {error_data.get('error', 'Erro ao executar a consulta.')}"
+        except Exception as e:
+            print(f"Erro: {str(e)}")
+            return e
 
 def SQLparaList(data):
     # Salvar o erro
@@ -87,21 +108,6 @@ def SQLparaList(data):
         })
 
     return novaListDict
-
-# Temp para testar o frontEnd
-def criaListaTeste():
-    import random
-    lista = []
-    sujeitos = ["O cachorro", "A garota", "O professor", "A mãe", "O carro", "O cientista", "O político", "A estrela"]
-    verbos = ["corre", "estuda", "fala", "viaja", "compreende", "brinca", "diz", "ajuda"]
-    objetos = ["na rua", "com os amigos", "no trabalho", "na escola", "para casa", "no parque", "para o futuro", "ao mundo"]
-    for _ in range(100):
-        lista.append({
-            'codigo': str(random.randint(int(3e9), int(3.1e9))),
-            'descricao': random.choice(sujeitos) +' '+ random.choice(verbos) +' '+ random.choice(objetos),
-            'saldo': random.randint(1, 100),
-        })
-    return lista
 
 def sanitize_input(input_str):
     import re
@@ -144,27 +150,30 @@ def material_pesquisa(request):
     ordemOrdenacao = request.GET.get('ordemOrdenacao', 'c')
     campoOrdenacao = request.GET.get('campoOrdenacao', 'codigo')
 
-    # para teste do frontend
-    #materials = criaListaTeste()
-
     # Acesso ao banco de dados oficial
-    materials = fetch_data(flag_TestarConexaoDatabase=True)
+    materials = fetch_data(criaQueryDatabase(), flag_TestarConexaoDatabase=True)
     filters = ''
 
-    if materials:
+    if materials != None:
         # Filtros
         ## Filtro por codigo (numerico)
         if codigo:
             # Garantir que codigo começa com 30 é que é valido (int)
             if codigo.startswith('30') and intValido(codigo):
-                filters += f" AND TO_CHAR(CO_MAT) LIKE '{codigo}%'"
+                if DatabaseTeste:
+                    filters += f" AND CAST(CO_MAT AS TEXT) LIKE '{codigo}%'"
+                else:
+                    filters += f" AND TO_CHAR(CO_MAT) LIKE '{codigo}%'"
             else:
                 messages.error(request, "O código de materiais deve começar com '30'.")
         ## Filtro por descrição (string)
         if descricao:
             descricao = sanitize_input(descricao)
-            # INSTR
-            filters += f" AND INSTR(NLSSORT(DE_MAT, 'NLS_SORT = BINARY_AI'), NLSSORT('{descricao}', 'NLS_SORT = BINARY_AI')) > 0"
+            if DatabaseTeste:
+                filters += f" AND DE_MAT COLLATE NOCASE LIKE '%{descricao}%' "
+            else:
+                # INSTR
+                filters += f" AND INSTR(NLSSORT(DE_MAT, 'NLS_SORT = BINARY_AI'), NLSSORT('{descricao}', 'NLS_SORT = BINARY_AI')) > 0"
         ## Filtro por saldo (qtd)
         if saldo_filter and saldo and intValido(saldo):
             saldo = int(saldo)
@@ -177,7 +186,7 @@ def material_pesquisa(request):
                     filters += f" AND QT_SALDO_ATU > {saldo}"
                 case 'entre':
                     if saldoMax and intValido(saldoMax):
-                        filters += f" AND column_name BETWEEN {saldo} AND {int(saldoMax)}"
+                        filters += f" AND QT_SALDO_ATU BETWEEN {saldo} AND {int(saldoMax)}"
 
         # Ordenação
         order_by = " ORDER BY DE_MAT ASC " 
@@ -193,7 +202,7 @@ def material_pesquisa(request):
         
         # Filters pode ou não ser '' e order_by pode ou não ser None
         # fetch_data está preparada para os dois
-        materials = SQLparaList(fetch_data(filters, order_by))
+        materials = SQLparaList(fetch_data(criaQueryDatabase(filters, order_by)))
     else:
         return messages.error(request, "Erro ao carregar o banco de dados")
     
