@@ -103,9 +103,9 @@ def fetch_data(queryCriada, flag_TestarConexaoDatabase=False):
             print(f"Erro: {str(e)}")
             return e
 
-
 def SQLparaList(data):
-    if data is None or isinstance(data, Exception) or "rows" not in data:
+    # Salvar o erro
+    if 'error' in data or isinstance(data, Exception) or "rows" not in data:
         error_msg = (
             str(data.get("error", "Erro desconhecido"))
             if isinstance(data, dict)
@@ -117,6 +117,16 @@ def SQLparaList(data):
             )
         return None
 
+    novaListDict = []
+
+    for linha in data['rows']: # Aparentemente esse é o nome retornado, teria que confimar
+        novaListDict.append({
+            'codigo': str(linha[0]),
+            'descricao': linha[1],
+            'saldo': int(linha[2]),
+        })
+
+    return novaListDict
 
 def sanitize_input(input_str):
     import re
@@ -167,6 +177,13 @@ def criarFiltros(param:dict):
     
     return [filters, order_by]
 
+# Universalizando o uso da API
+def processoAcessoOracle(paramGeral:dict):
+    SQL_parcial = criarFiltros(paramGeral)
+    query = criaQueryDatabase(SQL_parcial[0], SQL_parcial[1])
+    materials = fetch_data(query)
+    return SQLparaList(materials)
+
 ### lista com filtro
 def material_pesquisa(request):
     from django.core.paginator import Paginator
@@ -184,30 +201,16 @@ def material_pesquisa(request):
     }
 
     # Acesso ao banco de dados
-    SQL_parcial = criarFiltros(param)
-    query = criaQueryDatabase(SQL_parcial[0], SQL_parcial[1])
-    materials = fetch_data(query)
+    materials = processoAcessoOracle(param)
 
     # Verifique se materials é None antes de continuar
     if materials is None:
         messages.error(request, "Erro ao carregar o banco de dados")
         return render(request, "material_pesquisa.html", {"page_obj": []})
 
-    # Converta os dados para o formato esperado pelo template
-    converted_data = []
-    if isinstance(materials, dict) and "rows" in materials:
-        for row in materials["rows"]:
-            converted_data.append(
-                {
-                    "codigo": str(row[0]),  # CO_MAT
-                    "descricao": row[1],  # DE_MAT
-                    "saldo": row[2],  # QT_SALDO_ATU
-                }
-            )
-
     # Paginação
     try:
-        paginator = Paginator(converted_data, 20)
+        paginator = Paginator(materials, 20)
         page_number = request.GET.get("page")
         page_obj = paginator.get_page(page_number)
         return render(
@@ -239,9 +242,8 @@ def material_pesquisa2(request):
             'campoOrdenacao': request.GET.get('campoOrdenacao', 'codigo'),
         }
 
-        SQL_parcial = criarFiltros(param)
-        query = criaQueryDatabase(SQL_parcial[0], SQL_parcial[1])
-        queryset = fetch_data(query)
+        # Acessando o banco de dados recebe uma lista ou None(caso de erro)
+        queryset = processoAcessoOracle(param)
 
         # Paginação
         paginator = Paginator(queryset, page_size)
