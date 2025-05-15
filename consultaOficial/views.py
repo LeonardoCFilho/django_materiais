@@ -12,6 +12,7 @@ import re
 def index(request):
     return render(request, "index_consultaOficial.html")
 
+
 ##
 ### API de acesso ao banco de dados Oracle
 def criaQueryDatabase(filters=None, order_by=None):
@@ -41,6 +42,7 @@ def criaQueryDatabase(filters=None, order_by=None):
 
     # query += " FETCH FIRST 1000 ROWS ONLY" # temp
     return query
+
 
 # View to fetch data from the external API
 def fetch_data(queryCriada, flag_TestarConexaoDatabase=False):
@@ -103,9 +105,10 @@ def fetch_data(queryCriada, flag_TestarConexaoDatabase=False):
             print(f"Erro: {str(e)}")
             return e
 
+
 def SQLparaList(data):
     # Salvar o erro
-    if 'error' in data or isinstance(data, Exception) or "rows" not in data:
+    if "error" in data or isinstance(data, Exception) or "rows" not in data:
         error_msg = (
             str(data.get("error", "Erro desconhecido"))
             if isinstance(data, dict)
@@ -119,14 +122,19 @@ def SQLparaList(data):
 
     novaListDict = []
 
-    for linha in data['rows']: # Aparentemente esse é o nome retornado, teria que confimar
-        novaListDict.append({
-            'codigo': str(linha[0]),
-            'descricao': linha[1],
-            'saldo': int(linha[2]),
-        })
+    for linha in data[
+        "rows"
+    ]:  # Aparentemente esse é o nome retornado, teria que confimar
+        novaListDict.append(
+            {
+                "codigo": str(linha[0]),
+                "descricao": linha[1],
+                "saldo": int(linha[2]),
+            }
+        )
 
     return novaListDict
+
 
 def sanitize_input(input_str):
     import re
@@ -138,6 +146,7 @@ def sanitize_input(input_str):
         return sanitized
     return input_str
 
+
 def intValido(valor) -> bool:
     try:
         int(valor)
@@ -145,45 +154,50 @@ def intValido(valor) -> bool:
     except Exception:
         return False
 
-def criarFiltros(param:dict):
+
+def criarFiltros(param: dict):
     # Filtros
     filters = ""
-    if param.get('codigo'):
+    if param.get("codigo"):
         filters += f" AND CO_MAT LIKE '{param.get('codigo')}%'"
-    if param.get('descricao'):
+    if param.get("descricao"):
         filters += f" AND DE_MAT LIKE '%{param.get('descricao')}%'"
-    if param.get('saldo_filter') and param.get('saldo'):
-        if param.get('saldo_filter') == "menorq":
+    if param.get("saldo_filter") and param.get("saldo"):
+        if param.get("saldo_filter") == "menorq":
             filters += f" AND QT_SALDO_ATU < {param.get('saldo')}"
-        elif param.get('saldo_filter') == "maiorq":
+        elif param.get("saldo_filter") == "maiorq":
             filters += f" AND QT_SALDO_ATU > {param.get('saldo')}"
-        elif param.get('saldo_filter') == "igual":
+        elif param.get("saldo_filter") == "igual":
             filters += f" AND QT_SALDO_ATU = {param.get('saldo')}"
-        elif param.get('saldo_filter') == "entre" and param.get('saldoMax'):
+        elif param.get("saldo_filter") == "entre" and param.get("saldoMax"):
             filters += f" AND QT_SALDO_ATU BETWEEN {param.get('saldo')} AND {param.get('saldoMax')}"
 
     # Ordenação
-    order_by = " ORDER BY DE_MAT ASC " # Por segurança
-    if param.get('campoOrdenacao') and param.get('ordemOrdenacao'):
-        ordemOrdenacao = "ASC" if param.get('ordemOrdenacao') == 'c' else "DESC"
+    order_by = " ORDER BY DE_MAT ASC "  # Por segurança
+    if param.get("campoOrdenacao") and param.get("ordemOrdenacao"):
+        ordemOrdenacao = "ASC" if param.get("ordemOrdenacao") == "c" else "DESC"
         colunasDatabase = {
-            'codigo': 'CO_MAT',
-            'descricao': 'DE_MAT',
-            'saldo': 'QT_SALDO_ATU',
+            "codigo": "CO_MAT",
+            "descricao": "DE_MAT",
+            "saldo": "QT_SALDO_ATU",
         }
-        if param.get('campoOrdenacao') in colunasDatabase:
+        if param.get("campoOrdenacao") in colunasDatabase:
             order_by = f" ORDER BY {colunasDatabase[param.get('campoOrdenacao')]} {ordemOrdenacao} "
-    
+
     return [filters, order_by]
 
+
 # Universalizando o uso da API
-def acessarDatabaseOracle(paramGeral:dict):
+def acessarDatabaseOracle(paramGeral: dict):
     SQL_parcial = criarFiltros(paramGeral)
     query = criaQueryDatabase(SQL_parcial[0], SQL_parcial[1])
     materials = fetch_data(query)
     return SQLparaList(materials)
+
+
 ### API de acesso ao banco de dados Oracle - END
 ##
+
 
 #
 ### Prova de conceito de pesquisa de materiais
@@ -193,13 +207,13 @@ def material_pesquisa(request):
 
     # Leitura dos parâmetros de filtro
     param = {
-        'codigo': request.GET.get("codigo"),
-        'descricao': request.GET.get("descricao"),
-        'saldo_filter': request.GET.get("saldo_filter"),
-        'saldo': request.GET.get("saldo"),
-        'saldoMax': request.GET.get("saldo_between_end"),
-        'ordemOrdenacao': request.GET.get('ordemOrdenacao', 'c'),
-        'campoOrdenacao': request.GET.get('campoOrdenacao', 'codigo'),
+        "codigo": request.GET.get("codigo"),
+        "descricao": request.GET.get("descricao"),
+        "saldo_filter": request.GET.get("saldo_filter"),
+        "saldo": request.GET.get("saldo"),
+        "saldoMax": request.GET.get("saldo_between_end"),
+        "ordemOrdenacao": request.GET.get("ordemOrdenacao", "c"),
+        "campoOrdenacao": request.GET.get("campoOrdenacao", "codigo"),
     }
 
     # Acesso ao banco de dados
@@ -224,8 +238,11 @@ def material_pesquisa(request):
     except Exception as e:
         messages.error(request, f"Erro na paginação: {str(e)}")
         return render(request, "material_pesquisa.html", {"page_obj": []})
+
+
 ### Prova de conceito de pesquisa de materiais - END
 #
+
 
 ### lista com filtro FIM
 @require_GET
@@ -235,33 +252,48 @@ def material_pesquisa2(request):
         page_number = int(request.GET.get("page", 1))
         page_size = int(request.GET.get("page_size", 10))
 
-        # Aplicar filtros
+        # Aplicar filtros com valores padrão seguros
         param = {
-            'codigo': request.GET.get("codigo", ""),
-            'descricao': request.GET.get("descricao", ""),
-            'saldo_filter': request.GET.get("saldo_filter", ""),
-            'saldo': request.GET.get("saldo", ""),
-            'saldoMax': request.GET.get("saldo_between_end", ""),
-            'ordemOrdenacao': request.GET.get('ordemOrdenacao', 'c'),
-            'campoOrdenacao': request.GET.get('campoOrdenacao', 'codigo'),
+            "codigo": request.GET.get("codigo", "") or "",
+            "descricao": request.GET.get("descricao", "") or "",
+            "saldo_filter": request.GET.get("saldo_filter", "") or "",
+            "saldo": request.GET.get("saldo", "") or "",
+            "saldoMax": request.GET.get("saldo_between_end", "") or "",
+            "ordemOrdenacao": request.GET.get("ordemOrdenacao", "c") or "c",
+            "campoOrdenacao": request.GET.get("campoOrdenacao", "codigo") or "codigo",
         }
 
-        # Acessando o banco de dados recebe uma lista ou None(caso de erro)
+        # Acessando o banco de dados
         queryset = acessarDatabaseOracle(param)
+
+        # Se não houver resultados ou ocorrer erro, retornar lista vazia
+        if not queryset:
+            queryset = []
 
         # Paginação
         paginator = Paginator(queryset, page_size)
         page_obj = paginator.get_page(page_number)
 
-        # Serializar dados
-        results = [
-            {
-                "codigo": str(item.CO_MAT),
-                "descricao": item.DE_MAT,
-                "saldo": item.QT_SALDO_ATU,
-            }
-            for item in page_obj
-        ]
+        # Serializar dados  modificado para lidar com diferentes formatos de dados
+        results = []
+        for item in page_obj:
+            # Verifica se é um objeto DatabaseTeste ou um dicionário
+            if hasattr(item, "CO_MAT"):
+                results.append(
+                    {
+                        "codigo": str(item.CO_MAT),
+                        "descricao": item.DE_MAT,
+                        "saldo": item.QT_SALDO_ATU,
+                    }
+                )
+            elif isinstance(item, dict):
+                results.append(
+                    {
+                        "codigo": str(item.get("codigo", "")),
+                        "descricao": item.get("descricao", ""),
+                        "saldo": item.get("saldo", 0),
+                    }
+                )
 
         if request.path == "/materiaisPesquisa/":
             return render(
@@ -269,7 +301,7 @@ def material_pesquisa2(request):
                 "material_pesquisa.html",
                 {
                     "page_obj": page_obj,
-                    "flagUltimoUso": False,  # Ou True, conforme necessário
+                    "flagUltimoUso": False,
                 },
             )
 
@@ -284,5 +316,7 @@ def material_pesquisa2(request):
 
     except Exception as e:
         if request.path == "/materiaisPesquisa/":
-            return render(request, "material_pesquisa.html", {"error": str(e)})
+            return render(
+                request, "material_pesquisa.html", {"error": str(e), "page_obj": []}
+            )
         return JsonResponse({"error": str(e)}, status=500)
