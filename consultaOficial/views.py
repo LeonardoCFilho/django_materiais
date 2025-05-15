@@ -136,6 +136,36 @@ def intValido(valor) -> bool:
     except Exception:
         return False
 
+def criarFiltros(param:dict):
+    # Filtros
+    filters = ""
+    if param.get('codigo'):
+        filters += f" AND CO_MAT LIKE '{param.get('codigo')}%'"
+    if param.get('descricao'):
+        filters += f" AND DE_MAT LIKE '%{param.get('descricao')}%'"
+    if param.get('saldo_filter') and param.get('saldo'):
+        if param.get('saldo_filter') == "menorq":
+            filters += f" AND QT_SALDO_ATU < {param.get('saldo')}"
+        elif param.get('saldo_filter') == "maiorq":
+            filters += f" AND QT_SALDO_ATU > {param.get('saldo')}"
+        elif param.get('saldo_filter') == "igual":
+            filters += f" AND QT_SALDO_ATU = {param.get('saldo')}"
+        elif param.get('saldo_filter') == "entre" and param.get('saldoMax'):
+            filters += f" AND QT_SALDO_ATU BETWEEN {param.get('saldo')} AND {param.get('saldoMax')}"
+
+    # Ordenação
+    order_by = " ORDER BY DE_MAT ASC " # Por segurança
+    if param.get('campoOrdenacao') and param.get('ordemOrdenacao'):
+        ordemOrdenacao = "ASC" if param.get('ordemOrdenacao') == 'c' else "DESC"
+        colunasDatabase = {
+            'codigo': 'CO_MAT',
+            'descricao': 'DE_MAT',
+            'saldo': 'QT_SALDO_ATU',
+        }
+        if param.get('campoOrdenacao') in colunasDatabase:
+            order_by = f" ORDER BY {colunasDatabase[param.get('campoOrdenacao')]} {ordemOrdenacao} "
+    
+    return [filters, order_by]
 
 ### lista com filtro
 def material_pesquisa(request):
@@ -143,30 +173,19 @@ def material_pesquisa(request):
     from django.contrib import messages
 
     # Leitura dos parâmetros de filtro
-    codigo = request.GET.get("codigo")
-    descricao = request.GET.get("descricao")
-    saldo_filter = request.GET.get("saldo_filter")
-    saldo = request.GET.get("saldo")
-    saldoMax = request.GET.get("saldo_between_end")
-
-    # Construa a query com filtros
-    filters = ""
-    if codigo:
-        filters += f" AND CO_MAT LIKE '{codigo}%'"
-    if descricao:
-        filters += f" AND DE_MAT LIKE '%{descricao}%'"
-    if saldo_filter and saldo:
-        if saldo_filter == "menorq":
-            filters += f" AND QT_SALDO_ATU < {saldo}"
-        elif saldo_filter == "maiorq":
-            filters += f" AND QT_SALDO_ATU > {saldo}"
-        elif saldo_filter == "igual":
-            filters += f" AND QT_SALDO_ATU = {saldo}"
-        elif saldo_filter == "entre" and saldoMax:
-            filters += f" AND QT_SALDO_ATU BETWEEN {saldo} AND {saldoMax}"
+    param = {
+        'codigo': request.GET.get("codigo"),
+        'descricao': request.GET.get("descricao"),
+        'saldo_filter': request.GET.get("saldo_filter"),
+        'saldo': request.GET.get("saldo"),
+        'saldoMax': request.GET.get("saldo_between_end"),
+        'ordemOrdenacao': request.GET.get('ordemOrdenacao', 'c'),
+        'campoOrdenacao': request.GET.get('campoOrdenacao', 'codigo'),
+    }
 
     # Acesso ao banco de dados
-    query = criaQueryDatabase(filters)
+    SQL_parcial = criarFiltros(param)
+    query = criaQueryDatabase(SQL_parcial[0], SQL_parcial[1])
     materials = fetch_data(query)
 
     # Verifique se materials é None antes de continuar
@@ -209,34 +228,20 @@ def material_pesquisa2(request):
         page_number = int(request.GET.get("page", 1))
         page_size = int(request.GET.get("page_size", 10))
 
-        # Construir query com ORM
-        queryset = DatabaseTeste.objects.all()
-
         # Aplicar filtros
-        cod_filter = request.GET.get("codigo", "")
-        desc_filter = request.GET.get("descricao", "")
-        saldo_filter = request.GET.get("saldo_filter", "")
-        saldo_value = request.GET.get("saldo", "")
-        saldo_end = request.GET.get("saldo_between_end", "")
+        param = {
+            'codigo': request.GET.get("codigo", ""),
+            'descricao': request.GET.get("descricao", ""),
+            'saldo_filter': request.GET.get("saldo_filter", ""),
+            'saldo': request.GET.get("saldo", ""),
+            'saldoMax': request.GET.get("saldo_between_end", ""),
+            'ordemOrdenacao': request.GET.get('ordemOrdenacao', 'c'),
+            'campoOrdenacao': request.GET.get('campoOrdenacao', 'codigo'),
+        }
 
-        if cod_filter:
-            queryset = queryset.filter(CO_MAT__startswith=cod_filter)
-
-        if desc_filter:
-            queryset = queryset.filter(DE_MAT__icontains=desc_filter)
-
-        if saldo_filter and saldo_value:
-            saldo_value = int(saldo_value)
-            if saldo_filter == "menorq":
-                queryset = queryset.filter(QT_SALDO_ATU__lt=saldo_value)
-            elif saldo_filter == "maiorq":
-                queryset = queryset.filter(QT_SALDO_ATU__gt=saldo_value)
-            elif saldo_filter == "igual":
-                queryset = queryset.filter(QT_SALDO_ATU=saldo_value)
-            elif saldo_filter == "entre" and saldo_end:
-                queryset = queryset.filter(
-                    QT_SALDO_ATU__range=(saldo_value, int(saldo_end))
-                )
+        SQL_parcial = criarFiltros(param)
+        query = criaQueryDatabase(SQL_parcial[0], SQL_parcial[1])
+        queryset = fetch_data(query)
 
         # Paginação
         paginator = Paginator(queryset, page_size)

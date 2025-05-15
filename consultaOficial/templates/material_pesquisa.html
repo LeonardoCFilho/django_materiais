@@ -163,7 +163,9 @@
                             <option value="codigo" {% if request.GET.saldo_filter == 'codigo' %}selected{% endif %}>Código</option>
                             <option value="descricao" {% if request.GET.saldo_filter == 'descricao' %}selected{% endif %}>Descrição</option>
                             <option value="saldo" {% if request.GET.saldo_filter == 'saldo' %}selected{% endif %}>Saldo</option>     
-                            <option value="ultimoUso_meses" {% if request.GET.saldo_filter == 'ultimoUso_meses' %}selected{% endif %}>Último uso</option>                            
+                            {% if flagUltimoUso %}
+                            <option value="ultimoUso_meses" {% if request.GET.saldo_filter == 'ultimoUso_meses' %}selected{% endif %}>Último uso</option>      
+                            {% endif %}                      
                         </select>
                     </div>
                 </div>
