@@ -1,10 +1,19 @@
 from django.shortcuts import render
+from django.http import JsonResponse
+from django.core.paginator import Paginator
+from django.views.decorators.http import require_GET
+from django.db.models import Q
+from .models import DatabaseTeste
+from datetime import datetime  # Corrige o erro do datetime
+from django.http import HttpResponse  # Para tipagem correta
+import re
+
 
 def index(request):
-    return render(request, 'index_consultaOficial.html')
+    return render(request, "index_consultaOficial.html")
 
-DatabaseTeste = True
-def criaQueryDatabase(filters = None, order_by = None):
+
+def criaQueryDatabase(filters=None, order_by=None):
     if DatabaseTeste:
         database = "consultaOficial_databaseteste"
     else:
@@ -21,23 +30,27 @@ def criaQueryDatabase(filters = None, order_by = None):
     else:
         query += "WHERE TO_CHAR(CO_MAT) LIKE '30%'"
 
-    if filters and len(filters) > 0: # Filters vai ser uma string com todos os filtros (vai concatenar no WHERE)
+    if (
+        filters and len(filters) > 0
+    ):  # Filters vai ser uma string com todos os filtros (vai concatenar no WHERE)
         query += filters
 
-    if order_by: # Por segurança
+    if order_by:  # Por segurança
         query += order_by
-    
-    #query += " FETCH FIRST 1000 ROWS ONLY" # temp
+
+    # query += " FETCH FIRST 1000 ROWS ONLY" # temp
     return query
 
+
 # View to fetch data from the external API
-def fetch_data(queryCriada, flag_TestarConexaoDatabase = False):
+def fetch_data(queryCriada, flag_TestarConexaoDatabase=False):
     if DatabaseTeste:
         temp = {}
         from django.db import connection
+
         with connection.cursor() as cursor:
             cursor.execute(queryCriada)
-            temp['rows'] = cursor.fetchall()  # Fetch all rows
+            temp["rows"] = cursor.fetchall()  # Fetch all rows
         return temp
     else:
         import requests
@@ -53,11 +66,13 @@ def fetch_data(queryCriada, flag_TestarConexaoDatabase = False):
         db_password = os.getenv("DB_PASSWORD")
 
         if not db_user or not db_password:
-            raise ValueError("As variáveis DB_USER e DB_PASSWORD devem estar definidas no arquivo .env")
+            raise ValueError(
+                "As variáveis DB_USER e DB_PASSWORD devem estar definidas no arquivo .env"
+            )
 
         # Configurações da requisição
-        url = 'http://172.22.3.197:5011/api/query'
-        headers = {'Content-Type': 'application/json'}
+        url = "http://172.22.3.197:5011/api/query"
+        headers = {"Content-Type": "application/json"}
 
         # Adicionando a condicional para ou filtrar ou so testar a conexao
         if not flag_TestarConexaoDatabase:
@@ -66,57 +81,53 @@ def fetch_data(queryCriada, flag_TestarConexaoDatabase = False):
         else:
             # So testar a conexao
             query = "SELECT USER FROM DUAL;"
-        #print(query) # debug
+        # print(query) # debug
 
         # Corpo da requisição
-        payload = {
-            'db_user': db_user,
-            'db_password': db_password,
-            'sql_query': query
-        }
+        payload = {"db_user": db_user, "db_password": db_password, "sql_query": query}
 
         # Envio da requisição
         try:
             response = requests.post(url, headers=headers, data=json.dumps(payload))
             if response.status_code == 200:
                 data = response.json()
-                #print(data)
+                # print(data)
                 return data
             else:
                 error_data = response.json()
-                #print(f"Erro: {error_data.get('error', 'Erro ao executar a consulta.')}")
-                return f"Erro: {error_data.get('error', 'Erro ao executar a consulta.')}"
+                # print(f"Erro: {error_data.get('error', 'Erro ao executar a consulta.')}")
+                return (
+                    f"Erro: {error_data.get('error', 'Erro ao executar a consulta.')}"
+                )
         except Exception as e:
             print(f"Erro: {str(e)}")
             return e
 
+
 def SQLparaList(data):
-    # Salvar o erro
-    if 'error' in data or isinstance(data, Exception) or 'rows' not in data:
-        from datetime import datetime
-        with open("ErrosBD.txt",'a',encoding='UTF-8') as file:
-            file.write(f"""f{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n{data['error']}\n\n""")
-        return None 
+    if data is None or isinstance(data, Exception) or "rows" not in data:
+        error_msg = (
+            str(data.get("error", "Erro desconhecido"))
+            if isinstance(data, dict)
+            else str(data)
+        )
+        with open("ErrosBD.txt", "a", encoding="UTF-8") as file:
+            file.write(
+                f"{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n{error_msg}\n\n"
+            )
+        return None
 
-    novaListDict = []
-
-    for linha in data['rows']: # Aparentemente esse é o nome retornado, teria que confimar
-        novaListDict.append({
-            'codigo': str(linha[0]),
-            'descricao': linha[1],
-            'saldo': int(linha[2]),
-        })
-
-    return novaListDict
 
 def sanitize_input(input_str):
     import re
+
     """Sanitize input to prevent SQL injection (basic sanitization)."""
     if input_str:
         # Remove any potentially harmful characters (e.g., semicolons, quotes, etc.)
         sanitized = re.sub(r"[;'\"]", "", input_str)  # remove semicolons and quotes
         return sanitized
     return input_str
+
 
 def intValido(valor) -> bool:
     try:
@@ -125,90 +136,142 @@ def intValido(valor) -> bool:
     except Exception:
         return False
 
-### lista com filtro 
+
+### lista com filtro
 def material_pesquisa(request):
     from django.core.paginator import Paginator
     from django.contrib import messages
 
-    # Fazer a logica de login => Não está loggado -> redirect para outra página
-    # <login>
+    # Leitura dos parâmetros de filtro
+    codigo = request.GET.get("codigo")
+    descricao = request.GET.get("descricao")
+    saldo_filter = request.GET.get("saldo_filter")
+    saldo = request.GET.get("saldo")
+    saldoMax = request.GET.get("saldo_between_end")
 
-    # Fazer a logica de permissões
-    # <permissões>
-    
-    # temp
-    #if not request.session.get('flagUltimoUso', None):
-    #    request.session['flagUltimoUso'] = request.GET.get('flagUltimoUso', 'false').lower() == 'true' 
+    # Construa a query com filtros
+    filters = ""
+    if codigo:
+        filters += f" AND CO_MAT LIKE '{codigo}%'"
+    if descricao:
+        filters += f" AND DE_MAT LIKE '%{descricao}%'"
+    if saldo_filter and saldo:
+        if saldo_filter == "menorq":
+            filters += f" AND QT_SALDO_ATU < {saldo}"
+        elif saldo_filter == "maiorq":
+            filters += f" AND QT_SALDO_ATU > {saldo}"
+        elif saldo_filter == "igual":
+            filters += f" AND QT_SALDO_ATU = {saldo}"
+        elif saldo_filter == "entre" and saldoMax:
+            filters += f" AND QT_SALDO_ATU BETWEEN {saldo} AND {saldoMax}"
 
-    # Leitura do html
-    codigo = request.GET.get('codigo')
-    descricao = request.GET.get('descricao')
-    saldo_filter = request.GET.get('saldo_filter')
-    saldo = request.GET.get('saldo')
-    saldoMax = request.GET.get('saldo_between_end')
-    # Ordenação padrão vai ser por código (crescente)
-    ordemOrdenacao = request.GET.get('ordemOrdenacao', 'c')
-    campoOrdenacao = request.GET.get('campoOrdenacao', 'codigo')
+    # Acesso ao banco de dados
+    query = criaQueryDatabase(filters)
+    materials = fetch_data(query)
 
-    # Acesso ao banco de dados oficial
-    materials = fetch_data(criaQueryDatabase(), flag_TestarConexaoDatabase=True)
-    filters = ''
+    # Verifique se materials é None antes de continuar
+    if materials is None:
+        messages.error(request, "Erro ao carregar o banco de dados")
+        return render(request, "material_pesquisa.html", {"page_obj": []})
 
-    if materials != None:
-        # Filtros
-        ## Filtro por codigo (numerico)
-        if codigo:
-            # Garantir que codigo começa com 30 é que é valido (int)
-            if codigo.startswith('30') and intValido(codigo):
-                if DatabaseTeste:
-                    filters += f" AND CAST(CO_MAT AS TEXT) LIKE '{codigo}%'"
-                else:
-                    filters += f" AND TO_CHAR(CO_MAT) LIKE '{codigo}%'"
-            else:
-                messages.error(request, "O código de materiais deve começar com '30'.")
-        ## Filtro por descrição (string)
-        if descricao:
-            descricao = sanitize_input(descricao)
-            if DatabaseTeste:
-                filters += f" AND DE_MAT COLLATE NOCASE LIKE '%{descricao}%' "
-            else:
-                # INSTR
-                filters += f" AND INSTR(NLSSORT(DE_MAT, 'NLS_SORT = BINARY_AI'), NLSSORT('{descricao}', 'NLS_SORT = BINARY_AI')) > 0"
-        ## Filtro por saldo (qtd)
-        if saldo_filter and saldo and intValido(saldo):
-            saldo = int(saldo)
-            match saldo_filter:
-                case 'menorq': # <
-                    filters += f" AND QT_SALDO_ATU < {saldo}"
-                case 'igual': # =
-                    filters += f" AND QT_SALDO_ATU = {saldo}"
-                case 'maiorq': # >
-                    filters += f" AND QT_SALDO_ATU > {saldo}"
-                case 'entre':
-                    if saldoMax and intValido(saldoMax):
-                        filters += f" AND QT_SALDO_ATU BETWEEN {saldo} AND {int(saldoMax)}"
+    # Converta os dados para o formato esperado pelo template
+    converted_data = []
+    if isinstance(materials, dict) and "rows" in materials:
+        for row in materials["rows"]:
+            converted_data.append(
+                {
+                    "codigo": str(row[0]),  # CO_MAT
+                    "descricao": row[1],  # DE_MAT
+                    "saldo": row[2],  # QT_SALDO_ATU
+                }
+            )
 
-        # Ordenação
-        order_by = " ORDER BY DE_MAT ASC " 
-        if campoOrdenacao and ordemOrdenacao:
-            ordemOrdenacao = "ASC" if ordemOrdenacao == 'c' else "DESC"
-            colunasDatabase = {
-                'codigo': 'CO_MAT',
-                'descricao': 'DE_MAT',
-                'saldo': 'QT_SALDO_ATU',
-            }
-            if campoOrdenacao in colunasDatabase:
-                order_by = f" ORDER BY {colunasDatabase[campoOrdenacao]} {ordemOrdenacao} "
-        
-        # Filters pode ou não ser '' e order_by pode ou não ser None
-        # fetch_data está preparada para os dois
-        materials = SQLparaList(fetch_data(criaQueryDatabase(filters, order_by)))
-    else:
-        return messages.error(request, "Erro ao carregar o banco de dados")
-    
     # Paginação
-    paginator = Paginator(materials, 20)  # 20 itens por página
-    page_number = request.GET.get('page')
-    page_obj = paginator.get_page(page_number)
-    return render(request, 'material_pesquisa.html', {'page_obj': page_obj})
+    try:
+        paginator = Paginator(converted_data, 20)
+        page_number = request.GET.get("page")
+        page_obj = paginator.get_page(page_number)
+        return render(
+            request,
+            "material_pesquisa.html",
+            {"page_obj": page_obj, "flagUltimoUso": False},
+        )
+    except Exception as e:
+        messages.error(request, f"Erro na paginação: {str(e)}")
+        return render(request, "material_pesquisa.html", {"page_obj": []})
+
+
 ### lista com filtro FIM
+@require_GET
+def material_pesquisa2(request):
+    try:
+        # Parâmetros de paginação
+        page_number = int(request.GET.get("page", 1))
+        page_size = int(request.GET.get("page_size", 10))
+
+        # Construir query com ORM
+        queryset = DatabaseTeste.objects.all()
+
+        # Aplicar filtros
+        cod_filter = request.GET.get("codigo", "")
+        desc_filter = request.GET.get("descricao", "")
+        saldo_filter = request.GET.get("saldo_filter", "")
+        saldo_value = request.GET.get("saldo", "")
+        saldo_end = request.GET.get("saldo_between_end", "")
+
+        if cod_filter:
+            queryset = queryset.filter(CO_MAT__startswith=cod_filter)
+
+        if desc_filter:
+            queryset = queryset.filter(DE_MAT__icontains=desc_filter)
+
+        if saldo_filter and saldo_value:
+            saldo_value = int(saldo_value)
+            if saldo_filter == "menorq":
+                queryset = queryset.filter(QT_SALDO_ATU__lt=saldo_value)
+            elif saldo_filter == "maiorq":
+                queryset = queryset.filter(QT_SALDO_ATU__gt=saldo_value)
+            elif saldo_filter == "igual":
+                queryset = queryset.filter(QT_SALDO_ATU=saldo_value)
+            elif saldo_filter == "entre" and saldo_end:
+                queryset = queryset.filter(
+                    QT_SALDO_ATU__range=(saldo_value, int(saldo_end))
+                )
+
+        # Paginação
+        paginator = Paginator(queryset, page_size)
+        page_obj = paginator.get_page(page_number)
+
+        # Serializar dados
+        results = [
+            {
+                "codigo": str(item.CO_MAT),
+                "descricao": item.DE_MAT,
+                "saldo": item.QT_SALDO_ATU,
+            }
+            for item in page_obj
+        ]
+
+        if request.path == "/materiaisPesquisa/":
+            return render(
+                request,
+                "material_pesquisa.html",
+                {
+                    "page_obj": page_obj,
+                    "flagUltimoUso": False,  # Ou True, conforme necessário
+                },
+            )
+
+        return JsonResponse(
+            {
+                "count": paginator.count,
+                "total_pages": paginator.num_pages,
+                "results": results,
+                "current_page": page_obj.number,
+            }
+        )
+
+    except Exception as e:
+        if request.path == "/materiaisPesquisa/":
+            return render(request, "material_pesquisa.html", {"error": str(e)})
+        return JsonResponse({"error": str(e)}, status=500)
