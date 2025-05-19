@@ -2,21 +2,16 @@ from django.shortcuts import render
 from django.http import JsonResponse
 from django.core.paginator import Paginator
 from django.views.decorators.http import require_GET
-from django.db.models import Q
-from .models import DatabaseTeste
 from datetime import datetime  # Corrige o erro do datetime
-from django.http import HttpResponse  # Para tipagem correta
-import re
 
 
 def index(request):
     return render(request, "index_consultaOficial.html")
 
-
 ##
 ### API de acesso ao banco de dados Oracle
-def criaQueryDatabase(filters=None, order_by=None):
-    if DatabaseTeste:
+def criaQueryDatabase(filters=None, order_by=None, flagDatabaseTeste=False):
+    if flagDatabaseTeste:
         database = "consultaOficial_databaseteste"
     else:
         database = "SICAM.MATERIAL"
@@ -27,7 +22,7 @@ def criaQueryDatabase(filters=None, order_by=None):
     FROM {database}
     """
 
-    if DatabaseTeste:
+    if flagDatabaseTeste:
         query += "WHERE CAST(CO_MAT AS TEXT) LIKE '30%'"
     else:
         query += "WHERE TO_CHAR(CO_MAT) LIKE '30%'"
@@ -45,8 +40,8 @@ def criaQueryDatabase(filters=None, order_by=None):
 
 
 # View to fetch data from the external API
-def fetch_data(queryCriada, flag_TestarConexaoDatabase=False):
-    if DatabaseTeste:
+def fetch_data(queryCriada, flag_TestarConexaoDatabase=False, flagDatabaseTeste = False):
+    if flagDatabaseTeste:
         temp = {}
         from django.db import connection
 
@@ -155,21 +150,38 @@ def intValido(valor) -> bool:
         return False
 
 
-def criarFiltros(param: dict):
+def criarFiltros(param: dict, flagDatabaseTeste:bool):
     # Filtros
-    filters = ""
+    filters = ''
+    ## Filtro por codigo (numerico)
     if param.get("codigo"):
-        filters += f" AND CO_MAT LIKE '{param.get('codigo')}%'"
+        codigo = param.get("codigo")
+        # Garantir que codigo começa com 30 é que é valido (int)
+        if codigo.startswith('30') and intValido(codigo):
+            if flagDatabaseTeste:
+                filters += f" AND CAST(CO_MAT AS TEXT) LIKE '{codigo}%'"
+            else:
+                filters += f" AND TO_CHAR(CO_MAT) LIKE '{codigo}%'"
+        else:
+            raise ValueError("O código de materiais deve começar com '30'.")
+    ## Filtro por descrição (string)
     if param.get("descricao"):
-        filters += f" AND DE_MAT LIKE '%{param.get('descricao')}%'"
+        descricao = param.get("descricao")
+        descricao = sanitize_input(descricao)
+        if flagDatabaseTeste:
+            filters += f" AND DE_MAT COLLATE NOCASE LIKE '%{descricao}%' "
+        else:
+            # INSTR
+            filters += f" AND INSTR(NLSSORT(DE_MAT, 'NLS_SORT = BINARY_AI'), NLSSORT('{descricao}', 'NLS_SORT = BINARY_AI')) > 0"
+    ## Filtro por saldo (int)
     if param.get("saldo_filter") and param.get("saldo"):
-        if param.get("saldo_filter") == "menorq":
+        if param.get("saldo_filter") == "menorq": # < x
             filters += f" AND QT_SALDO_ATU < {param.get('saldo')}"
-        elif param.get("saldo_filter") == "maiorq":
+        elif param.get("saldo_filter") == "maiorq": # x >
             filters += f" AND QT_SALDO_ATU > {param.get('saldo')}"
-        elif param.get("saldo_filter") == "igual":
+        elif param.get("saldo_filter") == "igual": # x ==
             filters += f" AND QT_SALDO_ATU = {param.get('saldo')}"
-        elif param.get("saldo_filter") == "entre" and param.get("saldoMax"):
+        elif param.get("saldo_filter") == "entre" and param.get("saldoMax"): # < x < 
             filters += f" AND QT_SALDO_ATU BETWEEN {param.get('saldo')} AND {param.get('saldoMax')}"
 
     # Ordenação
@@ -188,13 +200,14 @@ def criarFiltros(param: dict):
 
 
 # Universalizando o uso da API
-def acessarDatabaseOracle(paramGeral: dict):
-    SQL_parcial = criarFiltros(paramGeral)
-    query = criaQueryDatabase(SQL_parcial[0], SQL_parcial[1])
-    materials = fetch_data(query)
-    return SQLparaList(materials)
-
-
+def acessarDatabaseOracle(paramGeral: dict, flagDatabaseTeste = False):
+    try: 
+        SQL_parcial = criarFiltros(paramGeral, flagDatabaseTeste=flagDatabaseTeste)
+        query = criaQueryDatabase(SQL_parcial[0], SQL_parcial[1], flagDatabaseTeste=flagDatabaseTeste)
+        materials = fetch_data(query, flagDatabaseTeste=flagDatabaseTeste)
+        return SQLparaList(materials)
+    except Exception as e:
+        raise e
 ### API de acesso ao banco de dados Oracle - END
 ##
 
@@ -217,7 +230,16 @@ def material_pesquisa(request):
     }
 
     # Acesso ao banco de dados
-    materials = acessarDatabaseOracle(param)
+    sufixo_url = request.path  
+    sufixo_url = str(sufixo_url).split("/materiaisPesquisa/")[-1]
+    flagDatabaseTeste = "TESTE" in sufixo_url
+    print(flagDatabaseTeste)
+    try:
+        materials = None
+        materials = acessarDatabaseOracle(param, flagDatabaseTeste)
+    except ValueError as e:
+        messages.error(request, "O código de materiais deve começar com '30'.")
+    # ...
 
     # Verifique se materials é None antes de continuar
     if materials is None:
@@ -264,7 +286,8 @@ def material_pesquisa2(request):
         }
 
         # Acessando o banco de dados
-        queryset = acessarDatabaseOracle(param)
+        flagDatabaseTeste = True
+        queryset = acessarDatabaseOracle(param, flagDatabaseTeste)
 
         # Se não houver resultados ou ocorrer erro, retornar lista vazia
         if not queryset:
