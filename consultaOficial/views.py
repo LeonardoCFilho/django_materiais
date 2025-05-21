@@ -172,7 +172,16 @@ def criarFiltros(param: dict, flagDatabaseTeste:bool):
             filters += f" AND DE_MAT COLLATE NOCASE LIKE '%{descricao}%' "
         else:
             # INSTR
-            filters += f" AND INSTR(NLSSORT(DE_MAT, 'NLS_SORT = BINARY_AI'), NLSSORT('{descricao}', 'NLS_SORT = BINARY_AI')) > 0"
+            #filters += f" AND INSTR(NLSSORT(DE_MAT, 'NLS_SORT = BINARY_AI'), NLSSORT('{descricao}', 'NLS_SORT = BINARY_AI')) > 0"
+            filters += f""" AND INSTR(
+    UPPER(TRANSLATE(DE_MAT,
+          'ÁÉÍÓÚÀÈÌÒÙÂÊÎÔÛÄËÏÖÜÃÕ',
+          'AEIOUAEIOUAEIOUAO')),
+    UPPER(TRANSLATE('{descricao}',
+          'ÁÉÍÓÚÀÈÌÒÙÂÊÎÔÛÄËÏÖÜÃÕ',
+          'AEIOUAEIOUAEIOUAO'))
+) > 0
+"""
     ## Filtro por saldo (int)
     if param.get("saldo_filter") and param.get("saldo"):
         if param.get("saldo_filter") == "menorq": # < x
@@ -195,6 +204,7 @@ def criarFiltros(param: dict, flagDatabaseTeste:bool):
         }
         if param.get("campoOrdenacao") in colunasDatabase:
             order_by = f" ORDER BY {colunasDatabase[param.get('campoOrdenacao')]} {ordemOrdenacao} "
+    print(order_by)
 
     return [filters, order_by]
 
@@ -226,14 +236,14 @@ def material_pesquisa(request):
         "saldo": request.GET.get("saldo"),
         "saldoMax": request.GET.get("saldo_between_end"),
         "ordemOrdenacao": request.GET.get("ordemOrdenacao", "c"),
-        "campoOrdenacao": request.GET.get("campoOrdenacao", "codigo"),
+        "campoOrdenacao": request.GET.get("campoOrdenacao", "descricao"),
     }
 
     # Acesso ao banco de dados
     sufixo_url = request.path  
     sufixo_url = str(sufixo_url).split("/materiaisPesquisa/")[-1]
     flagDatabaseTeste = "TESTE" in sufixo_url
-    print(flagDatabaseTeste)
+    #print(flagDatabaseTeste)
     try:
         materials = None
         materials = acessarDatabaseOracle(param, flagDatabaseTeste)
