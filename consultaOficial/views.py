@@ -173,10 +173,10 @@ def criarFiltros(param: dict, flagDatabaseTeste:bool):
         else:
             # INSTR
             filters += f""" AND INSTR(
-    UPPER(TRANSLATE(REGEXP_REPLACE(DE_MAT, '[[:punct:]]', ''), 
+    UPPER(TRANSLATE(DE_MAT,
           'ÁÉÍÓÚÀÈÌÒÙÂÊÎÔÛÄËÏÖÜÃÕ',
           'AEIOUAEIOUAEIOUAO')),
-    UPPER(REGEXP_REPLACE('{descricao}', '[[:punct:]]', ''), 
+    UPPER(TRANSLATE('{descricao}',
           'ÁÉÍÓÚÀÈÌÒÙÂÊÎÔÛÄËÏÖÜÃÕ',
           'AEIOUAEIOUAEIOUAO'))
 ) > 0
