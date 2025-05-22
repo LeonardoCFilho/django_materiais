@@ -172,12 +172,11 @@ def criarFiltros(param: dict, flagDatabaseTeste:bool):
             filters += f" AND DE_MAT COLLATE NOCASE LIKE '%{descricao}%' "
         else:
             # INSTR
-            #filters += f" AND INSTR(NLSSORT(DE_MAT, 'NLS_SORT = BINARY_AI'), NLSSORT('{descricao}', 'NLS_SORT = BINARY_AI')) > 0"
             filters += f""" AND INSTR(
-    UPPER(TRANSLATE(DE_MAT,
+    UPPER(TRANSLATE(REGEXP_REPLACE(DE_MAT, '[[:punct:]]', ''), 
           'ÁÉÍÓÚÀÈÌÒÙÂÊÎÔÛÄËÏÖÜÃÕ',
           'AEIOUAEIOUAEIOUAO')),
-    UPPER(TRANSLATE('{descricao}',
+    UPPER(REGEXP_REPLACE('{descricao}', '[[:punct:]]', ''), 
           'ÁÉÍÓÚÀÈÌÒÙÂÊÎÔÛÄËÏÖÜÃÕ',
           'AEIOUAEIOUAEIOUAO'))
 ) > 0
@@ -292,7 +291,7 @@ def material_pesquisa2(request):
             "saldo": request.GET.get("saldo", "") or "",
             "saldoMax": request.GET.get("saldo_between_end", "") or "",
             "ordemOrdenacao": request.GET.get("ordemOrdenacao", "c") or "c",
-            "campoOrdenacao": request.GET.get("campoOrdenacao", "codigo") or "codigo",
+            "campoOrdenacao": request.GET.get("campoOrdenacao", "codigo") or "descricao",
         }
 
         # Acessando o banco de dados
