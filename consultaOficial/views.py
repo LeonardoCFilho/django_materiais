@@ -296,7 +296,7 @@ def material_pesquisa2(request):
         }
 
         # Acessando o banco de dados
-        flagDatabaseTeste = True
+        flagDatabaseTeste = False
         queryset = acessarDatabaseOracle(param, flagDatabaseTeste)
 
         # Se não houver resultados ou ocorrer erro, retornar lista vazia
