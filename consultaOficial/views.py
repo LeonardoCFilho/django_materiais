@@ -193,17 +193,18 @@ def criarFiltros(param: dict, flagDatabaseTeste:bool):
             filters += f" AND QT_SALDO_ATU BETWEEN {param.get('saldo')} AND {param.get('saldoMax')}"
 
     # Ordenação
-    order_by = " ORDER BY DE_MAT ASC "  # Por segurança
+    order_by = " ORDER BY CO_MAT ASC "  # Por segurança, para ser mais obvio que tem um erro
     if param.get("campoOrdenacao") and param.get("ordemOrdenacao"):
         ordemOrdenacao = "ASC" if param.get("ordemOrdenacao") == "c" else "DESC"
         colunasDatabase = {
             "codigo": "CO_MAT",
-            "descricao": "DE_MAT",
+            "descricao": "DE_MAT" if flagDatabaseTeste else f"NLSSORT(DE_MAT, 'NLS_SORT=PORTUGUESE')",
             "saldo": "QT_SALDO_ATU",
         }
         if param.get("campoOrdenacao") in colunasDatabase:
             order_by = f" ORDER BY {colunasDatabase[param.get('campoOrdenacao')]} {ordemOrdenacao} "
-    print(order_by)
+    # ORDER BY NLSSORT(name, 'NLS_SORT=PORTUGUESE');
+    # ORDER BY NLSSORT(name, 'NLS_SORT=XPORTUGUESE');
 
     return [filters, order_by]
 
