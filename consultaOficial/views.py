@@ -15,6 +15,7 @@ def criaQueryDatabase(filters=None, order_by=None, flagDatabaseTeste=False):
         database = "consultaOficial_databaseteste"
     else:
         database = "SICAM.MATERIAL"
+    # ALTER DATABASE SET READ ONLY;
     query = f"""
     SELECT CO_MAT,
            DE_MAT,
@@ -25,7 +26,7 @@ def criaQueryDatabase(filters=None, order_by=None, flagDatabaseTeste=False):
     if flagDatabaseTeste:
         query += "WHERE CAST(CO_MAT AS TEXT) LIKE '30%'"
     else:
-        query += "WHERE TO_CHAR(CO_MAT) LIKE '30%'"
+        query += "WHERE TO_CHAR(CO_MAT) LIKE '30%' AND DE_MAT IS NOT NULL"
 
     if (
         filters and len(filters) > 0
@@ -198,7 +199,7 @@ def criarFiltros(param: dict, flagDatabaseTeste:bool):
         ordemOrdenacao = "ASC" if param.get("ordemOrdenacao") == "c" else "DESC"
         colunasDatabase = {
             "codigo": "CO_MAT",
-            "descricao": "DE_MAT" if flagDatabaseTeste else "DE_MAT COLLATE BINARY_CI ",
+            "descricao": "DE_MAT" if flagDatabaseTeste else "NLSSORT(DE_MAT, 'NLS_SORT=WEST_EUROPEAN_AI')",
             "saldo": "QT_SALDO_ATU",
         }
         if param.get("campoOrdenacao") in colunasDatabase:
