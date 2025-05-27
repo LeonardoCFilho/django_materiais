@@ -198,13 +198,13 @@ def criarFiltros(param: dict, flagDatabaseTeste:bool):
         ordemOrdenacao = "ASC" if param.get("ordemOrdenacao") == "c" else "DESC"
         colunasDatabase = {
             "codigo": "CO_MAT",
-            "descricao": "DE_MAT" if flagDatabaseTeste else f"NLSSORT(DE_MAT, 'NLS_SORT=PORTUGUESE')",
+            "descricao": "DE_MAT" if flagDatabaseTeste else "NLSSORT(DE_MAT, 'NLS_SORT=BRAZILIAN_CI')",
+            #"descricao": "DE_MAT" if flagDatabaseTeste else "NLSSORT(DE_MAT, 'NLS_SORT=BRAZILIAN_PORTUGUESE')",
+            #"descricao": "DE_MAT" if flagDatabaseTeste else "NLSSORT(DE_MAT, 'NLS_SORT=WEST_EUROPEAN_AI')",
             "saldo": "QT_SALDO_ATU",
         }
         if param.get("campoOrdenacao") in colunasDatabase:
             order_by = f" ORDER BY {colunasDatabase[param.get('campoOrdenacao')]} {ordemOrdenacao} "
-    # ORDER BY NLSSORT(name, 'NLS_SORT=PORTUGUESE');
-    # ORDER BY NLSSORT(name, 'NLS_SORT=XPORTUGUESE');
 
     return [filters, order_by]
 
