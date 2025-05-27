@@ -26,7 +26,13 @@ def criaQueryDatabase(filters=None, order_by=None, flagDatabaseTeste=False):
     if flagDatabaseTeste:
         query += "WHERE CAST(CO_MAT AS TEXT) LIKE '30%'"
     else:
-        query += "WHERE TO_CHAR(CO_MAT) LIKE '30%' AND DE_MAT IS NOT NULL"
+        query += """
+        WHERE TO_CHAR(CO_MAT) LIKE '30%'
+          AND DE_MAT IS NOT NULL
+          AND REGEXP_LIKE( TRIM(DE_MAT)  -- tira espaços iniciais
+                          , '^[[:alnum:]]'  -- 1.ª posição é letra/díg.
+                         )
+    """
 
     if (
         filters and len(filters) > 0
@@ -199,9 +205,11 @@ def criarFiltros(param: dict, flagDatabaseTeste:bool):
         ordemOrdenacao = "ASC" if param.get("ordemOrdenacao") == "c" else "DESC"
         colunasDatabase = {
             "codigo": "CO_MAT",
-            "descricao": "DE_MAT" if flagDatabaseTeste else "NLSSORT(DE_MAT, 'NLS_SORT=WEST_EUROPEAN_AI')",
-            "saldo": "QT_SALDO_ATU",
+            "descricao": "DE_MAT" if flagDatabaseTeste else "NLSSORT(REGEXP_REPLACE(DE_MAT, '^[[:space:]]+', ''), 'NLS_SORT=WEST_EUROPEAN_AI')",
+            "saldo": "QT_SALDO_ATU"
         }
+        
+
         if param.get("campoOrdenacao") in colunasDatabase:
             order_by = f" ORDER BY {colunasDatabase[param.get('campoOrdenacao')]} {ordemOrdenacao} "
 
