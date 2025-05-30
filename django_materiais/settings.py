@@ -136,3 +136,39 @@ STATIC_URL = "static/"
 # https://docs.djangoproject.com/en/4.2/ref/settings/#default-auto-field
 
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
+
+# Logs
+LOGGING = {
+    'version': 1,
+    'disable_existing_loggers': True,  # Don't disable existing loggers (e.g., Django's loggers)
+    'formatters': {
+        'verbose': {
+            'format': '{levelname} {asctime} {module} {filename} {lineno} {funcName} {message}',
+            'style': '{',  # Use the older '{}' style for formatting
+        },
+        'simple': {
+            'format': '{levelname} {message}',
+            'style': '{',
+        },
+    },
+    'handlers': {
+        'console': {
+            'level': 'DEBUG',
+            'class': 'logging.StreamHandler',
+            'formatter': 'simple',
+        },
+        'file': {
+            'level': 'DEBUG',
+            'class': 'logging.FileHandler',
+            'filename': 'djangoRequisicoes.log',
+            'formatter': 'verbose',
+        },
+    },
+    'loggers': {
+        'consulta': {  # Custom logger for your app
+            'handlers': ['console', 'file'],
+            'level': 'DEBUG',  # Change this level depending on what you want to log
+            'propagate': False,  # Don't propagate to the default Django logger
+        },
+    },
+}

@@ -2,47 +2,172 @@ from django.shortcuts import render
 from django.http import JsonResponse
 from django.core.paginator import Paginator
 from django.views.decorators.http import require_GET
-from datetime import datetime  # Corrige o erro do datetime
+import logging
+logger = logging.getLogger("consulta")
+
 
 
 def index(request):
     return render(request, "index_consultaOficial.html")
 
-##
+#
+### Consulta de materiais
+def SQLparaList(data, paramList:list[dict] = None) -> list[dict]|None:
+    # Caso de erro
+    if not data or "error" in data or "rows" not in data:
+        logger.error(data)
+        return None
+
+    # Criar lista com novas chaves
+    novaListDict = []
+    for linha in data['rows']:
+        # Criar dict equivalente a linha do json recebido
+        dictNovaLinha = {}
+        for i, param in enumerate(paramList):
+            dictNovaLinha[param['nomeColuna']] = param['tipoValor'](linha[i])
+        novaListDict.append(dictNovaLinha)
+
+    return novaListDict
+
+
+def criarFiltrosSQL(param: dict, tiposFiltros:dict) -> list[str]:
+    ## Filtros
+    listaFiltros = []
+    for key, value in param.items():
+        if key in tiposFiltros:
+            ## Filtro por codigo (numerico)
+            match key:
+                case "codigo":
+                    if value:
+                        # Garantir que codigo começa com 30 é que é valido (int)
+                        if intValido(value) and str(value).startswith('30'):
+                            listaFiltros.append(f"TO_CHAR(CO_MAT) LIKE '{value}%'")
+                        else:
+                            raise ValueError("O código de materiais deve começar com '30'.")
+            
+                ## Filtro por descrição (string)
+                case "descricao":
+                    if value:
+                        listaFiltros.append(f"""INSTR(
+                            UPPER(TRANSLATE(DE_MAT,
+                                'ÇÇççÁÉÍÓÚÀÈÌÒÙÂÊÎÔÛÄËÏÖÜÃÕ',
+                                'CCCCAEIOUAEIOUAEIOUAO')),
+                            UPPER(TRANSLATE('{sanitize_input(value)}',
+                                'ÇÇççÁÉÍÓÚÀÈÌÒÙÂÊÎÔÛÄËÏÖÜÃÕ',
+                                'CCCCAEIOUAEIOUAEIOUAO'))
+                            ) > 0
+                            """)
+                
+                ## Filtro por saldo (int)
+                case "saldo":
+                    if param.get("saldo_filter") and value:
+                        if param.get("saldo_filter") == "menorq": # < x
+                            listaFiltros.append(f"QT_SALDO_ATU < {value}")
+                        elif param.get("saldo_filter") == "maiorq": # x >
+                            listaFiltros.append(f"QT_SALDO_ATU > {value}")
+                        elif param.get("saldo_filter") == "igual": # x ==
+                            listaFiltros.append(f"QT_SALDO_ATU = {value}")
+                        elif param.get("saldo_filter") == "entre" and param.get("saldoMax"): # < x < 
+                            listaFiltros.append(f"QT_SALDO_ATU BETWEEN {value} AND {param.get('saldoMax')}")
+    
+                ## Filtro por uso
+                case "usoDesuso":
+                    match value:
+                        case "uso":
+                            listaFiltros.append("FG_DESUSO IS NULL")
+                        case "desuso":
+                            listaFiltros.append("FG_DESUSO IS NOT NULL")
+                        # Se não => Não fazer nada
+
+                ## Filtro por validade
+                # ...
+            
+    # Unir os filtros
+    filters = ''
+    if listaFiltros:
+        filters = " AND " + " AND ".join(listaFiltros)
+
+    ## Ordenação
+    order_by = '' # Por segurança
+    if not param.get('campoOrdenacao') or not param.get("ordemOrdenacao"):
+        param['campoOrdenacao'] = "descricao"
+        param['ordemOrdenacao'] = "ASC"
+    
+    # Com certeza existem os atributos de ordenação
+    ordemOrdenacao = "ASC" if param.get("ordemOrdenacao") == "c" else "DESC"
+    colunasDatabase = {
+        "codigo": "CO_MAT",
+        "descricao": "NLSSORT(REGEXP_REPLACE(DE_MAT, '^[[:space:]]+', ''), 'NLS_SORT=WEST_EUROPEAN_AI')",
+        "saldo": "QT_SALDO_ATU",
+        # Prazo de validade
+    }
+    
+    if param.get("campoOrdenacao") in colunasDatabase:
+        order_by = f" ORDER BY {colunasDatabase[param.get('campoOrdenacao')]} {ordemOrdenacao} "
+
+    return [filters, order_by]
+
+
+def returnListParametrosSQL(key:str) -> list[dict]:
+    dictGeral = {
+        # Lista para a tela de consulta materiais
+        'consultaGeralMateriais': [
+            {
+                'nomeColuna': "codigo",
+                'tipoValor': str
+            },
+            {
+                'nomeColuna': "descricao",
+                'tipoValor': str
+            },
+            {
+                'nomeColuna': "saldo",
+                'tipoValor': int
+            },
+        ],
+
+        # Lista para a consulta da validade de materiais
+        "consultaValidadeMateriais": [
+            {
+                'nomeColuna': "codigo",
+                'tipoValor': str
+            },
+        ],
+
+        # Lista para a consulta do uso medio de materiais
+        "consultaUsoMedioMateriais":[
+            {
+                'nomeColuna': "codigo",
+                'tipoValor': str
+            },
+        ],                
+    }
+    return dictGeral.get(key, None)
+
+
+def sanitize_input(input_str:str) -> str:
+    """Sanitize input to prevent SQL injection (basic sanitization)."""
+    import re
+    if input_str:
+        # Remove any potentially harmful characters (e.g., semicolons, quotes, etc.)
+        sanitized = re.sub(r"[;'\"]", "", input_str)  # remove semicolons and quotes
+        return sanitized
+    return input_str
+
+
+def intValido(valor) -> bool:
+    try:
+        int(valor)
+        return True
+    except Exception:
+        return False
+### Consulta de materiais - END
+#
+
+
+#
 ### API de acesso ao banco de dados Oracle
-def criaQueryDatabase(filters=None, order_by=None):
-    database = "SICAM.MATERIAL"
-    # ALTER DATABASE SET READ ONLY;
-    query = f"""
-    SELECT CO_MAT,
-           DE_MAT,
-           QT_SALDO_ATU
-    FROM {database}
-    """
-
-
-    query += """
-        WHERE TO_CHAR(CO_MAT) LIKE '30%'
-          AND DE_MAT IS NOT NULL
-          AND REGEXP_LIKE( TRIM(DE_MAT)  -- tira espaços iniciais
-                          , '^[[:alnum:]]'  -- 1.ª posição é letra/díg.
-                         )
-    """
-
-    if (
-        filters and len(filters) > 0
-    ):  # Filters vai ser uma string com todos os filtros (vai concatenar no WHERE)
-        query += filters
-
-    if order_by:  # Por segurança
-        query += order_by
-
-    # query += " FETCH FIRST 1000 ROWS ONLY" # temp
-    return query
-
-
-# View to fetch data from the external API
-def fetch_data(queryCriada, flag_TestarConexaoDatabase=False):
+def fetch_data(queryCriada:str, flag_TestarConexaoDatabase:bool=False) -> dict:
     import requests
     import json
     import os
@@ -56,9 +181,7 @@ def fetch_data(queryCriada, flag_TestarConexaoDatabase=False):
     db_password = os.getenv("DB_PASSWORD")
 
     if not db_user or not db_password:
-        raise ValueError(
-            "As variáveis DB_USER e DB_PASSWORD devem estar definidas no arquivo .env"
-        )
+        raise ValueError("As variáveis DB_USER e DB_PASSWORD devem estar definidas no arquivo .env")
 
     # Configurações da requisição
     url = "http://172.22.3.197:5011/api/query"
@@ -81,143 +204,77 @@ def fetch_data(queryCriada, flag_TestarConexaoDatabase=False):
         response = requests.post(url, headers=headers, data=json.dumps(payload))
         if response.status_code == 200:
             data = response.json()
-            # print(data)
+            #print(data)
             return data
         else:
             error_data = response.json()
-            # print(f"Erro: {error_data.get('error', 'Erro ao executar a consulta.')}")
-            return (
-                f"Erro: {error_data.get('error', 'Erro ao executar a consulta.')}"
-            )
-    except Exception as e:
-        print(f"Erro: {str(e)}")
-        return e
-
-
-def SQLparaList(data):
-    # Salvar o erro
-    if "error" in data or isinstance(data, Exception) or "rows" not in data:
-        error_msg = (
-            str(data.get("error", "Erro desconhecido"))
-            if isinstance(data, dict)
-            else str(data)
-        )
-        with open("ErrosBD.txt", "a", encoding="UTF-8") as file:
-            file.write(
-                f"{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n{error_msg}\n\n"
-            )
-        return None
-
-    novaListDict = []
-
-    for linha in data[
-        "rows"
-    ]: 
-        novaListDict.append(
-            {
-                "codigo": str(linha[0]),
-                "descricao": linha[1],
-                "saldo": int(linha[2]),
-            }
-        )
-
-    return novaListDict
-
-
-def sanitize_input(input_str):
-    """Sanitize input to prevent SQL injection (basic sanitization)."""
-    import re
-    if input_str:
-        # Remove any potentially harmful characters (e.g., semicolons, quotes, etc.)
-        sanitized = re.sub(r"[;'\"]", "", input_str)  # remove semicolons and quotes
-        return sanitized
-    return input_str
-
-
-def intValido(valor) -> bool:
-    try:
-        int(valor)
-        return True
-    except Exception:
-        return False
-
-
-def criarFiltros(param: dict):
-    # Filtros
-    filters = ''
-    ## Filtro por codigo (numerico)
-    if param.get("codigo"):
-        codigo = param.get("codigo")
-        # Garantir que codigo começa com 30 é que é valido (int)
-        if codigo.startswith('30') and intValido(codigo):
-            filters += f" AND TO_CHAR(CO_MAT) LIKE '{codigo}%'"
-        else:
-            raise ValueError("O código de materiais deve começar com '30'.")
-    ## Filtro por descrição (string)
-    if param.get("descricao"):
-        descricao = param.get("descricao")
-        descricao = sanitize_input(descricao)
-        filters += f""" AND INSTR(
-    UPPER(TRANSLATE(DE_MAT,
-          'ÁÉÍÓÚÀÈÌÒÙÂÊÎÔÛÄËÏÖÜÃÕ',
-          'AEIOUAEIOUAEIOUAO')),
-    UPPER(TRANSLATE('{descricao}',
-          'ÁÉÍÓÚÀÈÌÒÙÂÊÎÔÛÄËÏÖÜÃÕ',
-          'AEIOUAEIOUAEIOUAO'))
-) > 0
-"""
-    ## Filtro por saldo (int)
-    if param.get("saldo_filter") and param.get("saldo"):
-        if param.get("saldo_filter") == "menorq": # < x
-            filters += f" AND QT_SALDO_ATU < {param.get('saldo')}"
-        elif param.get("saldo_filter") == "maiorq": # x >
-            filters += f" AND QT_SALDO_ATU > {param.get('saldo')}"
-        elif param.get("saldo_filter") == "igual": # x ==
-            filters += f" AND QT_SALDO_ATU = {param.get('saldo')}"
-        elif param.get("saldo_filter") == "entre" and param.get("saldoMax"): # < x < 
-            filters += f" AND QT_SALDO_ATU BETWEEN {param.get('saldo')} AND {param.get('saldoMax')}"
-    
-    ## Filtro por uso
-    if param.get("usoDesuso"):
-        match param['usoDesuso']:
-            case "uso":
-                filters += " AND FG_DESUSO IS NULL"
-            case "desuso":
-                filters += " AND FG_DESUSO IS NOT NULL"
-            # Se não => Não fazer nada
-
-    # Ordenação
-    order_by = " ORDER BY CO_MAT ASC "  # Por segurança, para ser mais obvio que tem um erro
-    if param.get("campoOrdenacao") and param.get("ordemOrdenacao"):
-        ordemOrdenacao = "ASC" if param.get("ordemOrdenacao") == "c" else "DESC"
-        colunasDatabase = {
-            "codigo": "CO_MAT",
-            "descricao": "NLSSORT(REGEXP_REPLACE(DE_MAT, '^[[:space:]]+', ''), 'NLS_SORT=WEST_EUROPEAN_AI')",
-            "saldo": "QT_SALDO_ATU"
-        }
-        
-
-        if param.get("campoOrdenacao") in colunasDatabase:
-            order_by = f" ORDER BY {colunasDatabase[param.get('campoOrdenacao')]} {ordemOrdenacao} "
-
-    return [filters, order_by]
-
-
-# Universalizando o uso da API
-def acessarDatabaseOracle(paramGeral: dict):
-    try: 
-        SQL_parcial = criarFiltros(paramGeral)
-        query = criaQueryDatabase(SQL_parcial[0], SQL_parcial[1])
-        materials = fetch_data(query)
-        return SQLparaList(materials)
+            logger.debug(error_data) # Extra informação no log
+            raise requests.exceptions.HTTPError(f"Request falhou, codigo: {response.status_code}")
     except Exception as e:
         raise e
+
+
+def acessarDatabaseOracle(paramGeral: dict, tipoAcesso:str = "consultaGeralMateriais") -> list[dict]:
+    """
+    Faz uma query para o banco de dados oracle de acordo com os parametros de entra
+
+    Returns:
+        list[dict]: De acordo com a query criada internamente (pode ser vazia)
+    """
+    try: 
+        # Determinar qual será a pesquisa
+        match tipoAcesso:
+            case "consultaGeralMateriais":
+                # Esse dict será usada para transformar os GETs em colunas do BD
+                dictFiltros = { 
+                    "codigo": "CO_MAT",
+                    "descricao": "DE_MAT",
+                    "saldo": "QT_SALDO_ATU",
+                    "usoDesuso": "FG_DESUSO",                
+                }
+                queryInicialDB = """
+SELECT  CO_MAT,
+        DE_MAT,
+        QT_SALDO_ATU
+FROM SICAM.MATERIAL
+WHERE TO_CHAR(CO_MAT) LIKE '30%'
+    AND DE_MAT IS NOT NULL
+    AND REGEXP_LIKE(TRIM(DE_MAT)  -- tira espaços iniciais
+        , '^[[:alnum:]]'  -- 1.ª posição é letra/díg.
+    )
+"""
+
+            case "consultaValidadeMateriais":
+                ...
+
+            case "consultaUsoMedioMateriais":
+                ...
+
+            case _:
+               raise KeyError("tipoAcesso invalido")
+        
+        # Criar a query SQL
+        SQL_filtros_order = criarFiltrosSQL(paramGeral, dictFiltros)
+        query = str(queryInicialDB + SQL_filtros_order[0] + SQL_filtros_order[1])
+
+        # Solicitar ao banco de dados (read-only)
+        try:
+            materials = fetch_data(query)
+            return SQLparaList(materials, returnListParametrosSQL(tipoAcesso)) # Pode retornar uma lista vazia
+        
+        except Exception as e:
+            logger.error(e) # Registrar erro        
+            raise e
+    
+    except Exception as e:
+       logger.error(e)
+       raise e
 ### API de acesso ao banco de dados Oracle - END
-##
+#
 
 
 #
-### Prova de conceito de pesquisa de materiais
+### Prototipo backend para consulta de materiais
 def material_pesquisa(request):
     from django.core.paginator import Paginator
     from django.contrib import messages
@@ -229,7 +286,7 @@ def material_pesquisa(request):
         "saldo_filter": request.GET.get("saldo_filter"),
         "saldo": request.GET.get("saldo"),
         "saldoMax": request.GET.get("saldo_between_end"),
-        "usoDesuso": request.GET.get("usoDesuso"),
+        "usoDesuso": request.GET.get("usoDesuso", "uso"), # Padrão ser materiais em uso
         "ordemOrdenacao": request.GET.get("ordemOrdenacao", "c"),
         "campoOrdenacao": request.GET.get("campoOrdenacao", "descricao"),
     }
@@ -260,13 +317,11 @@ def material_pesquisa(request):
     except Exception as e:
         messages.error(request, f"Erro na paginação: {str(e)}")
         return render(request, "material_pesquisa.html", {"page_obj": []})
-
-
 ### Prova de conceito de pesquisa de materiais - END
 #
 
-
-### lista com filtro FIM
+#
+### Frontend, consulta de materiais
 @require_GET
 def material_pesquisa2(request):
     try:
@@ -341,3 +396,5 @@ def material_pesquisa2(request):
                 request, "material_pesquisa.html", {"error": str(e), "page_obj": []}
             )
         return JsonResponse({"error": str(e)}, status=500)
+### Frontend, consulta de materiais - END
+#
