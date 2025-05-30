@@ -129,12 +129,25 @@
                     </div>
                 </div>
 
+                <!-- Filtro de uso e desuso -->
+                <div class="col-md-4">
+                    <label for="escolhaUso_input" class="form-label">Ordenação por Atributos:</label>
+                    <div class="input-group">
+                        <select class="form-select" name="usoDesuso" id="escolhaUso_input">
+                            <option value="" disabled selected>Escolha a Condição</option>
+                            <option value="uso" {% if request.GET.usoDesuso == 'uso' %}selected{% endif %}>Materiais em uso</option>
+                            <option value="desuso" {% if request.GET.usoDesuso == 'desuso' %}selected{% endif %}>Materiais em desuso</option>
+                            <option value="uso+desuso" {% if request.GET.usoDesuso == 'uso+desuso' %}selected{% endif %}>Materiais em uso e desuso</option>                         
+                        </select>
+                    </div>
+                </div>
+                
+                <!-- Verificar se ainda é válido nessa página-->
                 <!-- Filtro de ultimoUso -->
-                {% if flagUltimoUso %}
+                <!-- {% if flagUltimoUso %}
                 <div class="col-md-4">
                     <label for="ultimoUso_input" class="form-label">Filtrar por Último Uso (Número):</label>
                     <div class="input-group">
-                        <!-- Dropdown de Último Uso com opções Menor que, Igual a, Maior que -->
                         <select class="form-select" name="ultimoUso_filter" id="ultimoUso_input">
                             <option value="" disabled selected>Escolha a Condição</option>
                             <option value="menorq" {% if request.GET.ultimoUso_filter == 'menorq' %}selected{% endif %}>Menor que</option>
@@ -152,7 +165,7 @@
                         </div>
                     </div>
                 </div>
-                {% endif %}
+                {% endif %} -->
 
                 <!-- Determinar o atributo de ordenação -->
                 <div class="col-md-4">

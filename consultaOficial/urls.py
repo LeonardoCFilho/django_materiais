@@ -10,5 +10,4 @@ urlpatterns = [
     path("", views.index, name="index_consultaOficial"),
     path("api/materiais/", require_GET(views.material_pesquisa2), name="material_api"),
     path("materiaisPesquisa/", views.material_pesquisa, name="material_pesquisa"),
-    path("materiaisPesquisa/TESTE/", views.material_pesquisa, name="material_pesquisa_teste"),
 ]

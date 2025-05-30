@@ -10,11 +10,8 @@ def index(request):
 
 ##
 ### API de acesso ao banco de dados Oracle
-def criaQueryDatabase(filters=None, order_by=None, flagDatabaseTeste=False):
-    if flagDatabaseTeste:
-        database = "consultaOficial_databaseteste"
-    else:
-        database = "SICAM.MATERIAL"
+def criaQueryDatabase(filters=None, order_by=None):
+    database = "SICAM.MATERIAL"
     # ALTER DATABASE SET READ ONLY;
     query = f"""
     SELECT CO_MAT,
@@ -23,10 +20,8 @@ def criaQueryDatabase(filters=None, order_by=None, flagDatabaseTeste=False):
     FROM {database}
     """
 
-    if flagDatabaseTeste:
-        query += "WHERE CAST(CO_MAT AS TEXT) LIKE '30%'"
-    else:
-        query += """
+
+    query += """
         WHERE TO_CHAR(CO_MAT) LIKE '30%'
           AND DE_MAT IS NOT NULL
           AND REGEXP_LIKE( TRIM(DE_MAT)  -- tira espaços iniciais
@@ -47,65 +42,56 @@ def criaQueryDatabase(filters=None, order_by=None, flagDatabaseTeste=False):
 
 
 # View to fetch data from the external API
-def fetch_data(queryCriada, flag_TestarConexaoDatabase=False, flagDatabaseTeste = False):
-    if flagDatabaseTeste:
-        temp = {}
-        from django.db import connection
+def fetch_data(queryCriada, flag_TestarConexaoDatabase=False):
+    import requests
+    import json
+    import os
+    from dotenv import load_dotenv
 
-        with connection.cursor() as cursor:
-            cursor.execute(queryCriada)
-            temp["rows"] = cursor.fetchall()  # Fetch all rows
-        return temp
+    # Carrega variáveis do .env
+    load_dotenv()
+
+    # Lê usuário e senha do banco
+    db_user = os.getenv("DB_USER")
+    db_password = os.getenv("DB_PASSWORD")
+
+    if not db_user or not db_password:
+        raise ValueError(
+            "As variáveis DB_USER e DB_PASSWORD devem estar definidas no arquivo .env"
+        )
+
+    # Configurações da requisição
+    url = "http://172.22.3.197:5011/api/query"
+    headers = {"Content-Type": "application/json"}
+
+    # Adicionando a condicional para ou filtrar ou so testar a conexao
+    if not flag_TestarConexaoDatabase:
+        # Nova consulta SQL
+        query = queryCriada
     else:
-        import requests
-        import json
-        import os
-        from dotenv import load_dotenv
+        # So testar a conexao
+        query = "SELECT USER FROM DUAL;"
+    # print(query) # debug
 
-        # Carrega variáveis do .env
-        load_dotenv()
+    # Corpo da requisição
+    payload = {"db_user": db_user, "db_password": db_password, "sql_query": query}
 
-        # Lê usuário e senha do banco
-        db_user = os.getenv("DB_USER")
-        db_password = os.getenv("DB_PASSWORD")
-
-        if not db_user or not db_password:
-            raise ValueError(
-                "As variáveis DB_USER e DB_PASSWORD devem estar definidas no arquivo .env"
-            )
-
-        # Configurações da requisição
-        url = "http://172.22.3.197:5011/api/query"
-        headers = {"Content-Type": "application/json"}
-
-        # Adicionando a condicional para ou filtrar ou so testar a conexao
-        if not flag_TestarConexaoDatabase:
-            # Nova consulta SQL
-            query = queryCriada
+    # Envio da requisição
+    try:
+        response = requests.post(url, headers=headers, data=json.dumps(payload))
+        if response.status_code == 200:
+            data = response.json()
+            # print(data)
+            return data
         else:
-            # So testar a conexao
-            query = "SELECT USER FROM DUAL;"
-        # print(query) # debug
-
-        # Corpo da requisição
-        payload = {"db_user": db_user, "db_password": db_password, "sql_query": query}
-
-        # Envio da requisição
-        try:
-            response = requests.post(url, headers=headers, data=json.dumps(payload))
-            if response.status_code == 200:
-                data = response.json()
-                # print(data)
-                return data
-            else:
-                error_data = response.json()
-                # print(f"Erro: {error_data.get('error', 'Erro ao executar a consulta.')}")
-                return (
-                    f"Erro: {error_data.get('error', 'Erro ao executar a consulta.')}"
-                )
-        except Exception as e:
-            print(f"Erro: {str(e)}")
-            return e
+            error_data = response.json()
+            # print(f"Erro: {error_data.get('error', 'Erro ao executar a consulta.')}")
+            return (
+                f"Erro: {error_data.get('error', 'Erro ao executar a consulta.')}"
+            )
+    except Exception as e:
+        print(f"Erro: {str(e)}")
+        return e
 
 
 def SQLparaList(data):
@@ -126,7 +112,7 @@ def SQLparaList(data):
 
     for linha in data[
         "rows"
-    ]:  # Aparentemente esse é o nome retornado, teria que confimar
+    ]: 
         novaListDict.append(
             {
                 "codigo": str(linha[0]),
@@ -139,9 +125,8 @@ def SQLparaList(data):
 
 
 def sanitize_input(input_str):
-    import re
-
     """Sanitize input to prevent SQL injection (basic sanitization)."""
+    import re
     if input_str:
         # Remove any potentially harmful characters (e.g., semicolons, quotes, etc.)
         sanitized = re.sub(r"[;'\"]", "", input_str)  # remove semicolons and quotes
@@ -157,7 +142,7 @@ def intValido(valor) -> bool:
         return False
 
 
-def criarFiltros(param: dict, flagDatabaseTeste:bool):
+def criarFiltros(param: dict):
     # Filtros
     filters = ''
     ## Filtro por codigo (numerico)
@@ -165,21 +150,14 @@ def criarFiltros(param: dict, flagDatabaseTeste:bool):
         codigo = param.get("codigo")
         # Garantir que codigo começa com 30 é que é valido (int)
         if codigo.startswith('30') and intValido(codigo):
-            if flagDatabaseTeste:
-                filters += f" AND CAST(CO_MAT AS TEXT) LIKE '{codigo}%'"
-            else:
-                filters += f" AND TO_CHAR(CO_MAT) LIKE '{codigo}%'"
+            filters += f" AND TO_CHAR(CO_MAT) LIKE '{codigo}%'"
         else:
             raise ValueError("O código de materiais deve começar com '30'.")
     ## Filtro por descrição (string)
     if param.get("descricao"):
         descricao = param.get("descricao")
         descricao = sanitize_input(descricao)
-        if flagDatabaseTeste:
-            filters += f" AND DE_MAT COLLATE NOCASE LIKE '%{descricao}%' "
-        else:
-            # INSTR
-            filters += f""" AND INSTR(
+        filters += f""" AND INSTR(
     UPPER(TRANSLATE(DE_MAT,
           'ÁÉÍÓÚÀÈÌÒÙÂÊÎÔÛÄËÏÖÜÃÕ',
           'AEIOUAEIOUAEIOUAO')),
@@ -198,6 +176,15 @@ def criarFiltros(param: dict, flagDatabaseTeste:bool):
             filters += f" AND QT_SALDO_ATU = {param.get('saldo')}"
         elif param.get("saldo_filter") == "entre" and param.get("saldoMax"): # < x < 
             filters += f" AND QT_SALDO_ATU BETWEEN {param.get('saldo')} AND {param.get('saldoMax')}"
+    
+    ## Filtro por uso
+    if param.get("usoDesuso"):
+        match param['usoDesuso']:
+            case "uso":
+                filters += " AND FG_DESUSO IS NULL"
+            case "desuso":
+                filters += " AND FG_DESUSO IS NOT NULL"
+            # Se não => Não fazer nada
 
     # Ordenação
     order_by = " ORDER BY CO_MAT ASC "  # Por segurança, para ser mais obvio que tem um erro
@@ -205,7 +192,7 @@ def criarFiltros(param: dict, flagDatabaseTeste:bool):
         ordemOrdenacao = "ASC" if param.get("ordemOrdenacao") == "c" else "DESC"
         colunasDatabase = {
             "codigo": "CO_MAT",
-            "descricao": "DE_MAT" if flagDatabaseTeste else "NLSSORT(REGEXP_REPLACE(DE_MAT, '^[[:space:]]+', ''), 'NLS_SORT=WEST_EUROPEAN_AI')",
+            "descricao": "NLSSORT(REGEXP_REPLACE(DE_MAT, '^[[:space:]]+', ''), 'NLS_SORT=WEST_EUROPEAN_AI')",
             "saldo": "QT_SALDO_ATU"
         }
         
@@ -217,11 +204,11 @@ def criarFiltros(param: dict, flagDatabaseTeste:bool):
 
 
 # Universalizando o uso da API
-def acessarDatabaseOracle(paramGeral: dict, flagDatabaseTeste = False):
+def acessarDatabaseOracle(paramGeral: dict):
     try: 
-        SQL_parcial = criarFiltros(paramGeral, flagDatabaseTeste=flagDatabaseTeste)
-        query = criaQueryDatabase(SQL_parcial[0], SQL_parcial[1], flagDatabaseTeste=flagDatabaseTeste)
-        materials = fetch_data(query, flagDatabaseTeste=flagDatabaseTeste)
+        SQL_parcial = criarFiltros(paramGeral)
+        query = criaQueryDatabase(SQL_parcial[0], SQL_parcial[1])
+        materials = fetch_data(query)
         return SQLparaList(materials)
     except Exception as e:
         raise e
@@ -242,18 +229,14 @@ def material_pesquisa(request):
         "saldo_filter": request.GET.get("saldo_filter"),
         "saldo": request.GET.get("saldo"),
         "saldoMax": request.GET.get("saldo_between_end"),
+        "usoDesuso": request.GET.get("usoDesuso"),
         "ordemOrdenacao": request.GET.get("ordemOrdenacao", "c"),
         "campoOrdenacao": request.GET.get("campoOrdenacao", "descricao"),
     }
 
-    # Acesso ao banco de dados
-    sufixo_url = request.path  
-    sufixo_url = str(sufixo_url).split("/materiaisPesquisa/")[-1]
-    flagDatabaseTeste = "TESTE" in sufixo_url
-    #print(flagDatabaseTeste)
     try:
         materials = None
-        materials = acessarDatabaseOracle(param, flagDatabaseTeste)
+        materials = acessarDatabaseOracle(param)
     except ValueError as e:
         messages.error(request, "O código de materiais deve começar com '30'.")
     # ...
@@ -303,8 +286,7 @@ def material_pesquisa2(request):
         }
 
         # Acessando o banco de dados
-        flagDatabaseTeste = False
-        queryset = acessarDatabaseOracle(param, flagDatabaseTeste)
+        queryset = acessarDatabaseOracle(param)
 
         # Se não houver resultados ou ocorrer erro, retornar lista vazia
         if not queryset:
@@ -317,7 +299,6 @@ def material_pesquisa2(request):
         # Serializar dados  modificado para lidar com diferentes formatos de dados
         results = []
         for item in page_obj:
-            # Verifica se é um objeto DatabaseTeste ou um dicionário
             if hasattr(item, "CO_MAT"):
                 results.append(
                     {
