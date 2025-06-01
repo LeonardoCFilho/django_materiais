@@ -338,6 +338,7 @@ def material_pesquisa2(request):
             "saldoMax": request.GET.get("saldo_between_end", "") or "",
             "ordemOrdenacao": request.GET.get("ordemOrdenacao", "c") or "c",
             "campoOrdenacao": request.GET.get("campoOrdenacao", "descricao") or "descricao",
+            "usoDesuso": request.GET.get("usoDesuso", "uso") or ""
         }
 
         # Acessando o banco de dados
