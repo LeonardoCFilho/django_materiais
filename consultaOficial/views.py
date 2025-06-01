@@ -50,11 +50,11 @@ def criarFiltrosSQL(param: dict, tiposFiltros:dict) -> list[str]:
                     if value:
                         listaFiltros.append(f"""INSTR(
                             UPPER(TRANSLATE(DE_MAT,
-                                'ÇÇççÁÉÍÓÚÀÈÌÒÙÂÊÎÔÛÄËÏÖÜÃÕ',
-                                'CCCCAEIOUAEIOUAEIOUAO')),
+                                'ÇÇççÁÉÍÓÚÀÈÌÒÙÂÊÎÔÛÄËÏÖÜÃÕ,.:;',
+                                'CCCCAEIOUAEIOUAEIOUAO    ')),
                             UPPER(TRANSLATE('{sanitize_input(value)}',
-                                'ÇÇççÁÉÍÓÚÀÈÌÒÙÂÊÎÔÛÄËÏÖÜÃÕ',
-                                'CCCCAEIOUAEIOUAEIOUAO'))
+                                'ÇÇççÁÉÍÓÚÀÈÌÒÙÂÊÎÔÛÄËÏÖÜÃÕ,.:;',
+                                'CCCCAEIOUAEIOUAEIOUAO    '))
                             ) > 0
                             """)
                 
@@ -201,7 +201,7 @@ def fetch_data(queryCriada:str, flag_TestarConexaoDatabase:bool=False) -> dict:
 
     # Envio da requisição
     try:
-        response = requests.post(url, headers=headers, data=json.dumps(payload))
+        response = requests.post(url, headers=headers, data=json.dumps(payload), timeout=30)
         if response.status_code == 200:
             data = response.json()
             #print(data)
@@ -274,56 +274,19 @@ WHERE TO_CHAR(CO_MAT) LIKE '30%'
 
 
 #
-### Prototipo backend para consulta de materiais
-def material_pesquisa(request):
-    from django.core.paginator import Paginator
-    from django.contrib import messages
-
-    # Leitura dos parâmetros de filtro
-    param = {
-        "codigo": request.GET.get("codigo"),
-        "descricao": request.GET.get("descricao"),
-        "saldo_filter": request.GET.get("saldo_filter"),
-        "saldo": request.GET.get("saldo"),
-        "saldoMax": request.GET.get("saldo_between_end"),
-        "usoDesuso": request.GET.get("usoDesuso", "uso"), # Padrão ser materiais em uso
-        "ordemOrdenacao": request.GET.get("ordemOrdenacao", "c"),
-        "campoOrdenacao": request.GET.get("campoOrdenacao", "descricao"),
-    }
-
-    try:
-        materials = None
-        materials = acessarDatabaseOracle(param)
-    except ValueError as e:
-        messages.error(request, "O código de materiais deve começar com '30'.")
-    # ...
-
-    # Verifique se materials é None antes de continuar
-    if materials is None:
-        messages.error(request, "Erro ao carregar o banco de dados")
-        return render(request, "material_pesquisa.html", {"page_obj": []})
-
-    # materials existe => renderizar a pagina com a lista
-    # Paginação
-    try:
-        paginator = Paginator(materials, 20)
-        page_number = request.GET.get("page")
-        page_obj = paginator.get_page(page_number)
-        return render(
-            request,
-            "material_pesquisa.html",
-            {"page_obj": page_obj, "flagUltimoUso": False},
-        )
-    except Exception as e:
-        messages.error(request, f"Erro na paginação: {str(e)}")
-        return render(request, "material_pesquisa.html", {"page_obj": []})
-### Prova de conceito de pesquisa de materiais - END
-#
-
-#
-### Frontend, consulta de materiais
+### Consulta geral de materiais
 @require_GET
 def material_pesquisa2(request):
+    from django.contrib import messages
+    from urllib3.exceptions import MaxRetryError, NewConnectionError
+    from requests.exceptions import Timeout, RequestException, ConnectionError
+    # Detectar se é django ou react
+    wants_json = request.headers.get("Accept") == "application/json" or request.path.startswith("/api/")
+    flagRenderDjango = not wants_json or request.path == "/materiaisPesquisa/"
+    # Se flagRenderDjango for True então vai ser o .html do Django
+    # Se não então será enviado o json para o react
+    flagExceptionAchada = False
+
     try:
         # Parâmetros de paginação
         page_number = int(request.GET.get("page", 1))
@@ -350,7 +313,14 @@ def material_pesquisa2(request):
 
         # Paginação
         paginator = Paginator(queryset, page_size)
-        page_obj = paginator.get_page(page_number)
+        ## Removendo um caso de erro
+        if page_number > paginator.num_pages:
+            page_number = 1 
+        page_obj = paginator.get_page(page_number) 
+
+        # Se for django => render a pagina
+        if flagRenderDjango:
+            return render(request, "material_pesquisa.html", {"page_obj": page_obj,})
 
         # Serializar dados  modificado para lidar com diferentes formatos de dados
         results = []
@@ -372,16 +342,6 @@ def material_pesquisa2(request):
                     }
                 )
 
-        if request.path == "/materiaisPesquisa/":
-            return render(
-                request,
-                "material_pesquisa.html",
-                {
-                    "page_obj": page_obj,
-                    "flagUltimoUso": False,
-                },
-            )
-
         return JsonResponse(
             {
                 "count": paginator.count,
@@ -391,11 +351,32 @@ def material_pesquisa2(request):
             }
         )
 
-    except Exception as e:
-        if request.path == "/materiaisPesquisa/":
-            return render(
-                request, "material_pesquisa.html", {"error": str(e), "page_obj": []}
-            )
-        return JsonResponse({"error": str(e)}, status=500)
-### Frontend, consulta de materiais - END
+    except ValueError as e:
+        mensagem_erro = "O código de materiais deve começar com '30'."
+        messages.error(request, mensagem_erro)
+        flagExceptionAchada = True
+    except Timeout as e:
+        mensagem_erro = "Timeout tentando conectar com o banco de dados\nTente novamente em breve."
+        messages.error(request, mensagem_erro)
+        flagExceptionAchada = True
+    except (MaxRetryError, NewConnectionError, ConnectionError) as e:
+        mensagem_erro = "Não foi possível estabelecer uma conexão com o servidor. Verifique a conexão."
+        messages.error(request, mensagem_erro)
+        flagExceptionAchada = True
+    except RequestException as e:
+        # Qualquer outro problema de requests
+        mensagem_erro = "Algum erro ocorreu enquanto processava o requests."
+        messages.error(request, mensagem_erro)
+        flagExceptionAchada = True
+    except Exception as e: # Dependendo especificar mais
+        mensagem_erro = "Erro ao carregar o banco de dados."
+        messages.error(request, mensagem_erro)
+        flagExceptionAchada = True
+
+    # Deu erro => renderizar especial
+    if flagExceptionAchada:
+        if flagRenderDjango:
+            return render(request, "material_pesquisa.html", {"page_obj": []})
+        return JsonResponse({"error": str(mensagem_erro)}, status=500)
+### Consulta geral de materiais - END
 #

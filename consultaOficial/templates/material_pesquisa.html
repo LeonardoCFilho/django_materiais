@@ -131,7 +131,7 @@
 
                 <!-- Filtro de uso e desuso -->
                 <div class="col-md-4">
-                    <label for="escolhaUso_input" class="form-label">Ordenação por Atributos:</label>
+                    <label for="escolhaUso_input" class="form-label">Filtro por uso:</label>
                     <div class="input-group">
                         <select class="form-select" name="usoDesuso" id="escolhaUso_input">
                             <option value="" disabled selected>Escolha a Condição</option>
@@ -140,57 +140,6 @@
                             <option value="uso+desuso" {% if request.GET.usoDesuso == 'uso+desuso' %}selected{% endif %}>Materiais em uso e desuso</option>                         
                         </select>
                     </div>
-                </div>
-                
-                <!-- Verificar se ainda é válido nessa página-->
-                <!-- Filtro de ultimoUso -->
-                <!-- {% if flagUltimoUso %}
-                <div class="col-md-4">
-                    <label for="ultimoUso_input" class="form-label">Filtrar por Último Uso (Número):</label>
-                    <div class="input-group">
-                        <select class="form-select" name="ultimoUso_filter" id="ultimoUso_input">
-                            <option value="" disabled selected>Escolha a Condição</option>
-                            <option value="menorq" {% if request.GET.ultimoUso_filter == 'menorq' %}selected{% endif %}>Menor que</option>
-                            <option value="igual" {% if request.GET.ultimoUso_filter == 'igual' %}selected{% endif %}>Igual a</option>
-                            <option value="maiorq" {% if request.GET.ultimoUso_filter == 'maiorq' %}selected{% endif %}>Maior que</option>
-                            <option value="entre" {% if request.GET.ultimoUso_filter == 'entre' %}selected{% endif %}>Entre</option>                            
-                        </select>
-                        <div class="input-group-append">
-                            <input type="number" name="ultimoUso" id="ultimoUso_value" class="form-control" min="0"
-                                placeholder="Digite o valor do período em meses" value="{{ request.GET.ultimoUso }}">
-                        </div>
-                        <div id="ultimoUso_between_input" style="display: none;">
-                            <input type="number" name="ultimoUso_between_end" id="ultimoUso_between_end" class="form-control" min="0"
-                                   placeholder="Digite o valor final" value="{{ request.GET.ultimoUso_between_end }}">
-                        </div>
-                    </div>
-                </div>
-                {% endif %} -->
-
-                <!-- Determinar o atributo de ordenação -->
-                <div class="col-md-4">
-                    <label for="campoOrdenacao_input" class="form-label">Ordenação por Atributos:</label>
-                    <div class="input-group">
-                        <select class="form-select" name="campoOrdenacao" id="campoOrdenacao_input">
-                            <option value="" disabled selected>Escolha a Condição</option>
-                            <option value="codigo" {% if request.GET.saldo_filter == 'codigo' %}selected{% endif %}>Código</option>
-                            <option value="descricao" {% if request.GET.saldo_filter == 'descricao' %}selected{% endif %}>Descrição</option>
-                            <option value="saldo" {% if request.GET.saldo_filter == 'saldo' %}selected{% endif %}>Saldo</option>     
-                            {% if flagUltimoUso %}
-                            <option value="ultimoUso_meses" {% if request.GET.saldo_filter == 'ultimoUso_meses' %}selected{% endif %}>Último uso</option>      
-                            {% endif %}                      
-                        </select>
-                    </div>
-                </div>
-            
-                <!-- Checkbox de Ordenação -->
-                <div class="col-md-4">
-                    <label for="ordemOrdenacao_input" class="form-label">Ordem:</label>
-                        <select class="form-select" name="ordemOrdenacao" id="ordemOrdenacao_input">
-                            <option value="" disabled selected>Escolha a Condição</option>
-                            <option value="d" {% if request.GET.saldo_filter == 'd' %}selected{% endif %}>Decrescente</option>
-                            <option value="c" {% if request.GET.saldo_filter == 'c' %}selected{% endif %}>Crescente</option>                    
-                        </select>
                 </div>
             </div>
 
@@ -209,9 +158,6 @@
                     <th>Código</th>
                     <th>Descrição</th>
                     <th>Saldo</th>
-                    {% if flagUltimoUso %}
-                    <th>Último Uso</th>
-                    {% endif %}
                 </tr>
             </thead>
             <tbody>
@@ -220,14 +166,6 @@
                     <td>{{ material.codigo }}</td>
                     <td>{{ material.descricao }}</td>
                     <td>{{ material.saldo }}</td>
-                    {% if flagUltimoUso %}
-                    <td>{{ material.ultimoUso_meses }}
-                        <!-- Adicionar textinho quando tiver numero -->
-                        {% if material.ultimoUso_meses != None %}
-                         meses atrás
-                        {% endif %}
-                    </td>
-                    {% endif %}
                 </tr>
                 {% endfor %}
             </tbody>

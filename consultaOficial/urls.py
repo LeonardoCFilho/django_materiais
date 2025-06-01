@@ -8,6 +8,12 @@ app_name = "consultaOficial"
 
 urlpatterns = [
     path("", views.index, name="index_consultaOficial"),
+    
+    # Consulta geral de materiais
+    ## Prototipo backend
+    path("materiaisPesquisa/", require_GET(views.material_pesquisa2), name="material_pesquisa"),
+    ## Versão oficial (react)
     path("api/materiais/", require_GET(views.material_pesquisa2), name="material_api"),
-    path("materiaisPesquisa/", views.material_pesquisa, name="material_pesquisa"),
+
+    # Consulta de validade
 ]
