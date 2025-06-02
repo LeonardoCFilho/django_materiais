@@ -7,6 +7,15 @@
     font-family: "Inter", sans-serif;
 }
 
+.error-message{
+    background-color: rgba(255, 0, 0, 0.8);
+    border: 2px solid red;
+    font-size: 20px;
+    padding: 20px;
+    border-radius: 10px;
+    width: fit-content;
+}
+
 .consulta-container {
     max-width: 1340px;
     margin: 0 auto;

@@ -38,6 +38,7 @@ export const Consulta: React.FC = () => {
     const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000/api/materiais/';
     const itemsPerPage = 10;
     const [validationError, setValidationError] = useState<string | null>(null);
+    const [copiedCode, setCopiedCode] = useState<string | null>(null);
 
     // Função para construir parâmetros de consulta ALINHADOS COM O BACKEND
     const buildQueryParams = (): URLSearchParams => {
@@ -98,7 +99,7 @@ export const Consulta: React.FC = () => {
             const response = await fetch(url);
             
             if (!response.ok) {
-                throw new Error(`HTTP error! status: ${response.status}`);
+                throw new Error(`Erro ao carregar banco de dados`);
             }
             
             const data = await response.json();
@@ -122,30 +123,44 @@ export const Consulta: React.FC = () => {
     // Função para aplicar filtros
     const applyFilters = () => {
         // Validação do código
-    if (tempCodFilter && !tempCodFilter.startsWith('30')) {
-            setValidationError('⚠️ O código de materiais deve começar com 30');
-            setError(null); // Limpa erros anteriores da API
-            return; // Impede a requisição à API
-        }
-        
-        setValidationError(null); // Limpa erros de validação
-        setError(null); // Limpa erros da API
+        if (tempCodFilter && !tempCodFilter.startsWith('30')) {
+                setValidationError('⚠️ O código de materiais deve começar com 30');
+                setError(null); // Limpa erros anteriores da API
+                return; // Impede a requisição à API
+            }
+            
+            setValidationError(null); // Limpa erros de validação
+            setError(null); // Limpa erros da API
 
-        setCodFilter(tempCodFilter);
-        setDescFilter(tempDescFilter);
-        setQuantValue1(tempQuantValue1);
-        setQuantValue2(tempQuantValue2);
-        setQuantFilter(tempQuantFilter);
-        setUsoFilter(tempUsoFilter);
-        
-        // Primeiro aplica os filtros, depois ajusta a página
-        const newPage = Math.max(1, Math.min(totalPages, Number(tempPageInput) || 1));
-        
-        // Se a página atual for maior que o novo total de páginas, vamos para a última página
-        const adjustedPage = Math.min(newPage, totalPages);
-        
-        setCurrentPage(adjustedPage);
-        setTempPageInput(adjustedPage.toString());
+            setCodFilter(tempCodFilter);
+            setDescFilter(tempDescFilter);
+            setQuantValue1(tempQuantValue1);
+            setQuantValue2(tempQuantValue2);
+            setQuantFilter(tempQuantFilter);
+            setUsoFilter(tempUsoFilter);
+            
+            // Primeiro aplica os filtros, depois ajusta a página
+            const newPage = Math.max(1, Math.min(totalPages, Number(tempPageInput) || 1));
+            
+            // Se a página atual for maior que o novo total de páginas, vamos para a última página
+            const adjustedPage = Math.min(newPage, totalPages);
+            
+            setCurrentPage(adjustedPage);
+            setTempPageInput(adjustedPage.toString());
+    };
+    
+    const copyToClipboard = (text: string) => {
+    // Verifica se estamos no navegador antes de acessar o clipboard
+        if (typeof window !== 'undefined' && navigator.clipboard) {
+            navigator.clipboard.writeText(text)
+                .then(() => {
+                    setCopiedCode(text);
+                    setTimeout(() => setCopiedCode(null), 1000);
+                })
+                .catch(err => {
+                    console.error('Falha ao copiar:', err);
+                });
+        }
     };
 
     // Função para limpar filtros
@@ -336,7 +351,7 @@ export const Consulta: React.FC = () => {
 
             {/* Mensagens de erro */}
             {validationError && (
-                <div className="error-message validation-error">
+                <div className="error-message">
                     {validationError}
                 </div>
             )}
@@ -369,11 +384,41 @@ export const Consulta: React.FC = () => {
                         <div
                             key={`${product.codigo}-${index}`}
                             className={`table-row ${index % 2 === 0 ? 'even' : 'odd'}`}
-                            onClick={() => setSelectedProduct(product)}
                         >
-                            <div className="col-cod">{product.codigo}</div>
-                            <div className="col-saldo">{product.saldo}</div>
-                            <div className="col-desc" title={product.descricao}>
+                            <div 
+                                className="col-cod" 
+                                onClick={() => copyToClipboard(product.codigo)}
+                                style={{
+                                    cursor: 'pointer',
+                                    position: 'relative',
+                                }}
+                                title={copiedCode === product.codigo ? 'Código copiado!' : 'Clique para copiar o código'}
+                            >
+                                {product.codigo}
+                                {copiedCode === product.codigo && (
+                                    <span style={{
+                                        position: 'absolute',
+                                        right: '5px',
+                                        color: 'green',
+                                        fontSize: '0.8em'
+                                    }}>✓</span>
+                                )}
+                            </div>
+                            
+                            <div 
+                                className="col-saldo"
+                                onClick={() => setSelectedProduct(product)}
+                                style={{ cursor: 'pointer' }}
+                            >
+                                {product.saldo}
+                            </div>
+                            
+                            <div 
+                                className="col-desc" 
+                                onClick={() => setSelectedProduct(product)}
+                                title={product.descricao}
+                                style={{ cursor: 'pointer' }}
+                            >
                                 {product.descricao.length > 100
                                     ? `${product.descricao.substring(0, 200)}...`
                                     : product.descricao}
