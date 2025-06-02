@@ -4,7 +4,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Lista de Materiais</title>
+    <title>Lista de Materiais - validade</title>
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.0/dist/css/bootstrap.min.css">
     <style>
         /* Container for the error message */
@@ -73,7 +73,7 @@
 
 <body>
     <div class="container mt-4">
-        <h1 class="mb-4">Lista de Materiais</h1>
+        <h1 class="mb-4">Lista de Materiais - validade</h1>
         <a href="/" class="btn btn-secondary">Voltar para o índice</a>
 
         {% if messages %}
@@ -132,14 +132,10 @@
 
                 <!-- Filtro de uso e desuso -->
                 <div class="col-md-4">
-                    <label for="escolhaUso_input" class="form-label">Filtro por uso:</label>
+                    <label for="prazoValidade_input" class="form-label">Qtd de dias que está vencido:</label>
                     <div class="input-group">
-                        <select class="form-select" name="usoDesuso" id="escolhaUso_input">
-                            <option value="" disabled selected>Escolha a Condição</option>
-                            <option value="uso" {% if request.GET.usoDesuso == 'uso' %}selected{% endif %}>Materiais em uso</option>
-                            <option value="desuso" {% if request.GET.usoDesuso == 'desuso' %}selected{% endif %}>Materiais em desuso</option>
-                            <option value="uso+desuso" {% if request.GET.usoDesuso == 'uso+desuso' %}selected{% endif %}>Materiais em uso e desuso</option>                         
-                        </select>
+                        <input type="number" name="prazoValidade" id="prazoValidade_value" class="form-control" min="0"
+                                placeholder="Digite o valor do prazo de validade" value="{{ request.GET.prazoValidade }}">
                     </div>
                 </div>
             </div>
@@ -159,6 +155,7 @@
                     <th>Código</th>
                     <th>Descrição</th>
                     <th>Saldo</th>
+                    <th>Prazo vencimento</th>
                 </tr>
             </thead>
             <tbody>
@@ -167,6 +164,11 @@
                     <td>{{ material.codigo }}</td>
                     <td>{{ material.descricao }}</td>
                     <td>{{ material.saldo }}</td>
+                    {% if material.prazoValidade < 0 %}
+                        <td>Vencido:{{ material.prazoValidade }}</td>
+                    {% else %}
+                        <td>{{ material.prazoValidade }}</td>
+                    {% endif %}
                 </tr>
                 {% endfor %}
             </tbody>
@@ -177,12 +179,12 @@
             <ul class="pagination">
                 {% if page_obj.has_previous %}
                 <li class="page-item">
-                    <a class="page-link" href="?page=1{% for key, value in request.GET.items %}{% if key != 'page' %}&{{ key }}={{ value }}{% endif %}{% endfor %}" aria-label="Primeira">
+                    <a class="page-link" href="?page=1{% if request.GET.codigo %}&codigo={{ request.GET.codigo }}{% endif %}{% if request.GET.descricao %}&descricao={{ request.GET.descricao }}{% endif %}{% if request.GET.saldo_filter %}&saldo_filter={{ request.GET.saldo_filter }}{% endif %}{% if request.GET.saldo %}&saldo={{ request.GET.saldo }}{% endif %}{% if request.GET.saldo_between_end %}&saldo_between_end={{ request.GET.saldo_between_end }}{% endif %}{% if request.GET.prazoValidade %}&prazoValidade={{ request.GET.prazoValidade }}{% endif %}" aria-label="Primeira">
                         <span aria-hidden="true">&laquo;&laquo;</span>
                     </a>
                 </li>
                 <li class="page-item">
-                    <a class="page-link" href="?page={{ page_obj.previous_page_number }}{% for key, value in request.GET.items %}{% if key != 'page' %}&{{ key }}={{ value }}{% endif %}{% endfor %}" aria-label="Anterior">
+                    <a class="page-link" href="?page={{ page_obj.previous_page_number }}{% if request.GET.codigo %}&codigo={{ request.GET.codigo }}{% endif %}{% if request.GET.descricao %}&descricao={{ request.GET.descricao }}{% endif %}{% if request.GET.saldo_filter %}&saldo_filter={{ request.GET.saldo_filter }}{% endif %}{% if request.GET.saldo %}&saldo={{ request.GET.saldo }}{% endif %}{% if request.GET.saldo_between_end %}&saldo_between_end={{ request.GET.saldo_between_end }}{% endif %}{% if request.GET.prazoValidade %}&prazoValidade={{ request.GET.prazoValidade }}{% endif %}" aria-label="Anterior">
                         <span aria-hidden="true">&laquo;</span>
                     </a>
                 </li>
@@ -196,19 +198,18 @@
             
                 {% if page_obj.has_next %}
                 <li class="page-item">
-                    <a class="page-link" href="?page={{ page_obj.next_page_number }}{% for key, value in request.GET.items %}{% if key != 'page' %}&{{ key }}={{ value }}{% endif %}{% endfor %}" aria-label="Próxima">
+                    <a class="page-link" href="?page={{ page_obj.next_page_number }}{% if request.GET.codigo %}&codigo={{ request.GET.codigo }}{% endif %}{% if request.GET.descricao %}&descricao={{ request.GET.descricao }}{% endif %}{% if request.GET.saldo_filter %}&saldo_filter={{ request.GET.saldo_filter }}{% endif %}{% if request.GET.saldo %}&saldo={{ request.GET.saldo }}{% endif %}{% if request.GET.saldo_between_end %}&saldo_between_end={{ request.GET.saldo_between_end }}{% endif %}{% if request.GET.prazoValidade %}&prazoValidade={{ request.GET.prazoValidade }}{% endif %}" aria-label="Próxima">
                         <span aria-hidden="true">&raquo;</span>
                     </a>
                 </li>
                 <li class="page-item">
-                    <a class="page-link" href="?page={{ page_obj.paginator.num_pages }}{% for key, value in request.GET.items %}{% if key != 'page' %}&{{ key }}={{ value }}{% endif %}{% endfor %}" aria-label="Última">
+                    <a class="page-link" href="?page={{ page_obj.paginator.num_pages }}{% if request.GET.codigo %}&codigo={{ request.GET.codigo }}{% endif %}{% if request.GET.descricao %}&descricao={{ request.GET.descricao }}{% endif %}{% if request.GET.saldo_filter %}&saldo_filter={{ request.GET.saldo_filter }}{% endif %}{% if request.GET.saldo %}&saldo={{ request.GET.saldo }}{% endif %}{% if request.GET.saldo_between_end %}&saldo_between_end={{ request.GET.saldo_between_end }}{% endif %}{% if request.GET.prazoValidade %}&prazoValidade={{ request.GET.prazoValidade }}{% endif %}" aria-label="Última">
                         <span aria-hidden="true">&raquo;&raquo;</span>
                     </a>
                 </li>
                 {% endif %}
             </ul>
         </nav>
-
 
     </div>
 </body>

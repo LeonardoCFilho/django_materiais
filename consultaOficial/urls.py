@@ -16,4 +16,6 @@ urlpatterns = [
     path("api/materiais/", require_GET(views.material_pesquisa2), name="material_api"),
 
     # Consulta de validade
+    ## Prototipo backend
+    path("materiaisValidade/", require_GET(views.consultaValidadeMateriais), name="material_validade"),
 ]
