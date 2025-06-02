@@ -29,39 +29,7 @@ def returnListParametrosSQL(key:str) -> list[dict]:
                 'nomeColuna': "saldo",
                 'tipoValor': int,
             },
-        ],
-
-        # Lista para a consulta da validade de materiais
-        "consultaValidadeMateriais": [
-            {
-                'nomeColuna': "codigo",
-                'tipoValor': str,
-            },
-            {
-                'nomeColuna': "descricao",
-                'tipoValor': str,
-            },
-            {
-                'nomeColuna': "saldo",
-                'tipoValor': int,
-            },
-            {
-                'nomeColuna': "dataValidade",
-                'tipoValor': str,
-            },
-            {
-                'nomeColuna': "prazoValidade",
-                'tipoValor': int,
-            },
-        ],
-
-        # Lista para a consulta do uso medio de materiais
-        "consultaUsoMedioMateriais":[
-            {
-                'nomeColuna': "codigo",
-                'tipoValor': str
-            },
-        ],                
+        ],             
     }
     return dictGeral.get(key, None)
 
@@ -284,29 +252,8 @@ WHERE TO_CHAR(CO_MAT) LIKE '30%'
 """
 
             case "consultaValidadeMateriais":
-                dictFiltros = { 
-                    "codigo": "MATERIAL.CO_MAT",
-                    "descricao": "MATERIAL.DE_MAT",
-                    "saldo": "MATERIAL.QT_SALDO_ATU",
-                    "prazoValidade": "ROUND(MATERIAL_VALIDADE.SIMA_DT_VALIDADE - SYSDATE)",                
-                }
-                queryInicialDB = """
-SELECT 
-    MATERIAL.CO_MAT,
-    MATERIAL.DE_MAT,
-    MATERIAL.QT_SALDO_ATU,
-    MATERIAL_VALIDADE.SIMA_DT_VALIDADE,
-    ROUND(MATERIAL_VALIDADE.SIMA_DT_VALIDADE - SYSDATE) AS dias_diff
-FROM 
-    SICAM.MATERIAL
-INNER JOIN 
-    SICAM.MATERIAL_VALIDADE
-ON 
-    MATERIAL.CO_MAT = MATERIAL_VALIDADE.SIMA_CO_MAT
-WHERE 
-    TO_CHAR(MATERIAL.CO_MAT) LIKE '30%'
-"""
-
+                ...
+                
             case "consultaUsoMedioMateriais":
                 ...
 
@@ -403,76 +350,4 @@ def material_pesquisa2(request):
             return render(request, "material_pesquisa.html", {"page_obj": []})
         return JsonResponse({"error": str(mensagem_erro)}, status=500)
 ### Consulta geral de materiais - END
-#
-
-
-#
-### Consulta de validade de materiais
-@require_GET
-def consultaValidadeMateriais(request):
-
-    # Logica de login
-
-
-    # Detectar se é django ou react
-    wants_json = request.headers.get("Accept") == "application/json" or request.path.startswith("/api/")
-    flagRenderDjango = not wants_json or request.path == "/materiaisValidade/"
-    # Se flagRenderDjango for True então vai ser o .html do Django
-    # Se não então será enviado o json para o react
-    flagExceptionAchada = False
-
-    try:
-        # Parâmetros de paginação
-        page_number = int(request.GET.get("page", 1))
-        page_size = int(request.GET.get("page_size", 10))
-
-        # Aplicar filtros com valores padrão seguros
-        param = {
-            "codigo": request.GET.get("codigo", "") or "",
-            "descricao": request.GET.get("descricao", "") or "",
-            "saldo_filter": request.GET.get("saldo_filter", "") or "",
-            "saldo": request.GET.get("saldo", "") or "",
-            "saldoMax": request.GET.get("saldo_between_end", "") or "",
-            "prazoValidade": request.GET.get("prazoValidade", "") or "",
-            # Ordenar do que tem mais prazo ate vencer
-            "ordemOrdenacao": request.GET.get("ordemOrdenacao", "d"),
-            "campoOrdenacao": request.GET.get("campoOrdenacao", "prazoValidade"),
-        }
-
-        queryset = acessarDatabaseOracle(param, "consultaValidadeMateriais")
-        if not queryset:
-            queryset = []
-
-        # Paginação
-        paginator = Paginator(queryset, page_size)
-        ## Removendo um caso de erro
-        if page_number > paginator.num_pages:
-            page_number = 1 
-        page_obj = paginator.get_page(page_number) 
-
-        # Se for django => render a pagina
-        if flagRenderDjango:
-            return render(request, "material_validade.html", {"page_obj": page_obj,})
-        # Se não => json para o react
-        return JsonResponse(
-            {
-                "count": paginator.count,
-                "total_pages": paginator.num_pages,
-                "results": queryset,
-                "current_page": page_obj.number,
-            }
-        )
-
-    except Exception as e: # Dependendo especificar mais
-        mensagem_erro = lidarErrosGenericos(e)
-        messages.error(request, mensagem_erro)
-        flagExceptionAchada = True
-
-    # Deu erro => renderizar especial
-    if flagExceptionAchada:
-        if flagRenderDjango:
-            return render(request, "material_validade.html", {"page_obj": []})
-        return JsonResponse({"error": str(mensagem_erro)}, status=500)
-
-### Consulta de validade de materiais - END
 #
