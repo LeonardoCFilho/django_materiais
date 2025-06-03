@@ -9,9 +9,11 @@ interface Product {
     codigo: string;
     saldo: number;
     descricao: string;
+    dataValidade: string;
+    prazoValidade: number;
 }
 
-export const Consulta: React.FC = () => {
+export const Vencimento: React.FC = () => {
     // Estados temporários
     const [tempQuantFilter, setTempQuantFilter] = useState<string>('igual a');
     const [tempCodFilter, setTempCodFilter] = useState<string>('');
@@ -19,7 +21,7 @@ export const Consulta: React.FC = () => {
     const [tempQuantValue1, setTempQuantValue1] = useState<string>('');
     const [tempQuantValue2, setTempQuantValue2] = useState<string>('');
     const [tempPageInput, setTempPageInput] = useState<string>('1');
-    const [tempUsoFilter, setTempUsoFilter] = useState<string>('uso');
+    const [tempValidadeFilter, setTempValidadeFilter] = useState<string>('');
 
     // Estados reais
     const [quantFilter, setQuantFilter] = useState<string>('igual a');
@@ -27,7 +29,7 @@ export const Consulta: React.FC = () => {
     const [descFilter, setDescFilter] = useState<string>('');
     const [quantValue1, setQuantValue1] = useState<string>('');
     const [quantValue2, setQuantValue2] = useState<string>('');
-    const [usoFilter, setUsoFilter] = useState<string>('uso');
+    const [validadeFilter, setValidadeFilter] = useState<string>('');
     const [products, setProducts] = useState<Product[]>([]);
     const [loading, setLoading] = useState<boolean>(false);
     const [error, setError] = useState<string | null>(null);
@@ -35,12 +37,12 @@ export const Consulta: React.FC = () => {
     const [totalPages, setTotalPages] = useState<number>(1);
     const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
 
-    const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000/api/materiais/';
+    // ATENÇÃO: Mudei para apontar para o endpoint correto
+    const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000/api/materiaisValidade/';
     const itemsPerPage = 10;
     const [validationError, setValidationError] = useState<string | null>(null);
     const [copiedCode, setCopiedCode] = useState<string | null>(null);
 
-    // Função para construir parâmetros de consulta ALINHADOS COM O BACKEND
     const buildQueryParams = (): URLSearchParams => {
         const params = new URLSearchParams();
         
@@ -52,16 +54,10 @@ export const Consulta: React.FC = () => {
         if (codFilter) params.append('codigo', codFilter);
         if (descFilter) params.append('descricao', descFilter);
         
-        // Filtro de uso/desuso - VALORES EXATOS QUE O BACKEND ESPERA
-        if (usoFilter === 'uso' || usoFilter === 'desuso' || usoFilter === 'uso+desuso') {
-            params.append('usoDesuso', usoFilter);
-        }
-        
-        // Filtro de saldo - ALINHADO COM O BACKEND
+        // Filtro de saldo
         if (quantValue1) {
             params.append('saldo', quantValue1);
             
-            // Mapeamento de operadores para os valores que o backend espera
             const operatorMap: Record<string, string> = {
                 'menor ou igual a': 'menorq',
                 'maior ou igual a': 'maiorq',
@@ -78,14 +74,18 @@ export const Consulta: React.FC = () => {
             }
         }
         
-        // Ordenação - VALORES PADRÃO DO BACKEND
-        params.append('campoOrdenacao', 'descricao');
-        params.append('ordemOrdenacao', 'c');
+        // Filtro de validade (ajustado para o backend)
+        if (validadeFilter) {
+            params.append('prazoValidade', validadeFilter);
+        }
+        
+        // Ordenação (ajustada para o backend)
+        params.append('campoOrdenacao', 'prazoValidade');
+        params.append('ordemOrdenacao', 'd'); // 'd' para descendente (vencendo primeiro)
         
         return params;
     };
 
-    // Função para buscar produtos da API
     const fetchProducts = useCallback(async () => {
         setLoading(true);
         setError(null);
@@ -99,21 +99,25 @@ export const Consulta: React.FC = () => {
             const response = await fetch(url);
             
             if (!response.ok) {
-                throw new Error(`Erro ao carregar banco de dados`);
+                throw new Error(`Erro ao carregar banco de dados: ${response.status}`);
             }
 
             const data = await response.json();
-            setProducts(data.results || []);  // Agora results contém apenas os itens da página atual
+            
+            // Ajuste para a estrutura do seu backend
+            setProducts(data.results || []);
             setTotalPages(data.total_pages || 1);
             setCurrentPage(data.current_page || 1);
             
         } catch (err) {
+            console.error("Erro na requisição:", err);
             setError(err instanceof Error ? err.message : 'Erro desconhecido');
         } finally {
             setLoading(false);
         }
-    }, [currentPage, codFilter, descFilter, usoFilter, quantFilter, quantValue1, quantValue2]);
+    }, [currentPage, codFilter, descFilter, quantFilter, quantValue1, quantValue2, validadeFilter]);
 
+    // Restante do código permanece igual...
     // Debounce para a busca
     useEffect(() => {
         const debouncedFetch = debounce(fetchProducts, 500);
@@ -125,29 +129,26 @@ export const Consulta: React.FC = () => {
     const applyFilters = () => {
         // Validação do código
         if (tempCodFilter && !tempCodFilter.startsWith('30')) {
-                setValidationError('⚠️ O código de materiais deve começar com 30');
-                setError(null); // Limpa erros anteriores da API
-                return; // Impede a requisição à API
-            }
-            
-            setValidationError(null); // Limpa erros de validação
-            setError(null); // Limpa erros da API
+            setValidationError('⚠️ O código de materiais deve começar com 30');
+            setError(null);
+            return;
+        }
+        
+        setValidationError(null);
+        setError(null);
 
-            setCodFilter(tempCodFilter);
-            setDescFilter(tempDescFilter);
-            setQuantValue1(tempQuantValue1);
-            setQuantValue2(tempQuantValue2);
-            setQuantFilter(tempQuantFilter);
-            setUsoFilter(tempUsoFilter);
-            
-            // Primeiro aplica os filtros, depois ajusta a página
-            const newPage = Math.max(1, Math.min(totalPages, Number(tempPageInput) || 1));
-            
-            // Se a página atual for maior que o novo total de páginas, vamos para a última página
-            const adjustedPage = Math.min(newPage, totalPages);
-            
-            setCurrentPage(adjustedPage);
-            setTempPageInput(adjustedPage.toString());
+        setCodFilter(tempCodFilter);
+        setDescFilter(tempDescFilter);
+        setQuantValue1(tempQuantValue1);
+        setQuantValue2(tempQuantValue2);
+        setQuantFilter(tempQuantFilter);
+        setValidadeFilter(tempValidadeFilter);
+        
+        const newPage = Math.max(1, Math.min(totalPages, Number(tempPageInput) || 1));
+        const adjustedPage = Math.min(newPage, totalPages);
+        
+        setCurrentPage(adjustedPage);
+        setTempPageInput(adjustedPage.toString());
     };
     
     const copyToClipboard = (text: string) => {
@@ -170,31 +171,27 @@ export const Consulta: React.FC = () => {
         setTempCodFilter('');
         setTempDescFilter('');
         setTempPageInput('1');
-        setTempUsoFilter('uso');
+        setTempValidadeFilter('');
         
         setCodFilter('');
         setDescFilter('');
         setQuantValue1('');
         setQuantValue2('');
-        setUsoFilter('uso');
+        setValidadeFilter('');
         setCurrentPage(1);
     };
-    // Função para lidar com pressionar Enter nos inputs
-    // Para inputs normais (código, quantidade, etc)
+
     const handleKeyPress = (e: React.KeyboardEvent<HTMLInputElement>) => {
         if (e.key === 'Enter') {
             applyFilters();
         }
     };
 
-    // Específica para textarea (descrição)
     const handleTextareaKeyPress = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
-        // Shift+Enter - permite quebra de linha
         if (e.shiftKey && e.key === 'Enter') {
-            return; // Permite o comportamento padrão (nova linha)
+            return;
         }
         
-        // Apenas Enter - aplica filtros e previne quebra de linha
         if (e.key === 'Enter') {
             e.preventDefault();
             applyFilters();
@@ -204,6 +201,13 @@ export const Consulta: React.FC = () => {
     useEffect(() => {
         setTempPageInput(currentPage.toString());
     }, [currentPage]);
+
+    const formatValidade = (prazo: number) => {
+        if (prazo < 0) {
+            return `Vencido há ${Math.abs(prazo)} dias`;
+        }
+        return `Vence em ${prazo} dias`;
+    };
 
     return (
         <div className="consulta-container">
@@ -287,19 +291,18 @@ export const Consulta: React.FC = () => {
                     </div>
                 </div>
 
-                {/* Filtro de uso e desuso */}
+                {/* Filtro de validade */}
                 <div className="filter-group">
-                    <label>Filtro de uso</label>
-                    <div className="quantity-filter">
-                        <select
-                            value={tempUsoFilter}
-                            onChange={(e) => setTempUsoFilter(e.target.value)}
+                    <label>Filtro de validade</label>
+                    <div className="quantity-filter" id='expired'>
+                        <input
+                            type="number"
+                            value={tempValidadeFilter}
+                            onChange={(e) => setTempValidadeFilter(e.target.value)}
+                            placeholder="Quantidade de dias vencidos"
                             disabled={loading}
-                        >
-                            <option value="uso">Materiais em uso</option>
-                            <option value="desuso">Materiais em desuso</option>
-                            <option value="uso+desuso">Materiais em uso e desuso</option>
-                        </select>
+                            onKeyPress={handleKeyPress}
+                        />
                     </div>
                 </div>
 
@@ -325,24 +328,23 @@ export const Consulta: React.FC = () => {
                     <div className="search-input">
                         <Search size={16} className="search-icon" onClick={applyFilters} />
                         <textarea
-                        value={tempDescFilter}
-                        onChange={(e) => setTempDescFilter(e.target.value)}
-                        placeholder="Pesquisar..."
-                        rows={1}
-                        disabled={loading}
-                        onKeyDown={handleTextareaKeyPress}  // Usamos onKeyDown para melhor controle
-                        style={{ 
-                            resize: 'none', 
-                            minHeight: '38px',
-                            whiteSpace: 'pre-wrap' // Mantém as quebras de linha quando existirem
-                        }}
-                        onInput={(e) => {
-                            // Auto-ajuste de altura
-                            const target = e.target as HTMLTextAreaElement;
-                            target.style.height = 'auto';
-                            target.style.height = target.scrollHeight + 'px';
-                        }}
-                    />
+                            value={tempDescFilter}
+                            onChange={(e) => setTempDescFilter(e.target.value)}
+                            placeholder="Pesquisar..."
+                            rows={1}
+                            disabled={loading}
+                            onKeyDown={handleTextareaKeyPress}
+                            style={{ 
+                                resize: 'none', 
+                                minHeight: '38px',
+                                whiteSpace: 'pre-wrap'
+                            }}
+                            onInput={(e) => {
+                                const target = e.target as HTMLTextAreaElement;
+                                target.style.height = 'auto';
+                                target.style.height = target.scrollHeight + 'px';
+                            }}
+                        />
                     </div>
                 </div>
             </div>
@@ -366,6 +368,7 @@ export const Consulta: React.FC = () => {
                     <div className="col-cod">Código</div>
                     <div className="col-saldo">Saldo</div>
                     <div className="col-desc">Descrição</div>
+                    <div className="col-validade">Validade</div>
                 </div>
 
                 {loading ? (
@@ -407,7 +410,10 @@ export const Consulta: React.FC = () => {
                             <div 
                                 className="col-saldo"
                                 onClick={() => setSelectedProduct(product)}
-                                style={{ cursor: 'pointer' }}
+                                style={{ 
+                                    cursor: 'pointer',
+                                    padding: '0 10px',
+                                }}
                             >
                                 {product.saldo}
                             </div>
@@ -419,8 +425,19 @@ export const Consulta: React.FC = () => {
                                 style={{ cursor: 'pointer' }}
                             >
                                 {product.descricao.length > 100
-                                    ? `${product.descricao.substring(0, 200)}...`
+                                    ? `${product.descricao.substring(0, 100)}...`
                                     : product.descricao}
+                            </div>
+
+                            <div 
+                                className="col-validade"
+                                onClick={() => setSelectedProduct(product)}
+                                style={{ 
+                                    cursor: 'pointer',
+                                    color: product.prazoValidade < 0 ? 'red' : 'inherit'
+                                }}
+                            >
+                                {formatValidade(product.prazoValidade)}
                             </div>
                         </div>
                     ))
@@ -452,31 +469,28 @@ export const Consulta: React.FC = () => {
 
                     <span className="page-input">
                         Página <input
-                        type="number"
-                        min="1"
-                        max={totalPages}
-                        value={tempPageInput}
-                        onChange={(e) => {
-                            const value = e.target.value;
-                            // Permite apenas números ou string vazia
-                            if (value === '' || /^[0-9\b]+$/.test(value)) {
-                                const numValue = value === '' ? 1 : parseInt(value, 10);
-                                // Garante que o valor não exceda o total de páginas
-                                const clampedValue = Math.min(Math.max(1, numValue), totalPages);
-                                setTempPageInput(clampedValue.toString());
-                            }
-                        }}
-                        onBlur={() => {
-                            // Quando perde o foco, corrige qualquer valor inválido
-                            const page = Math.max(1, Math.min(totalPages, Number(tempPageInput) || 1));
-                            setTempPageInput(page.toString());
-                            if (page !== currentPage) {
-                                setCurrentPage(page);
-                            }
-                        }}
-                        onKeyPress={handleKeyPress}
-                        disabled={loading}
-                    /> de {totalPages}
+                            type="number"
+                            min="1"
+                            max={totalPages}
+                            value={tempPageInput}
+                            onChange={(e) => {
+                                const value = e.target.value;
+                                if (value === '' || /^[0-9\b]+$/.test(value)) {
+                                    const numValue = value === '' ? 1 : parseInt(value, 10);
+                                    const clampedValue = Math.min(Math.max(1, numValue), totalPages);
+                                    setTempPageInput(clampedValue.toString());
+                                }
+                            }}
+                            onBlur={() => {
+                                const page = Math.max(1, Math.min(totalPages, Number(tempPageInput) || 1));
+                                setTempPageInput(page.toString());
+                                if (page !== currentPage) {
+                                    setCurrentPage(page);
+                                }
+                            }}
+                            onKeyPress={handleKeyPress}
+                            disabled={loading}
+                        /> de {totalPages}
                     </span>
 
                     <button
@@ -524,7 +538,13 @@ export const Consulta: React.FC = () => {
                                 <span>Código:</span>
                                 <span>{selectedProduct.codigo}</span>
                             </div>
-                            <div className="modal-row full-width">
+                            <div className="modal-row">
+                                <span>Validade:</span>
+                                <span style={{ color: selectedProduct.prazoValidade < 0 ? 'red' : 'inherit' }}>
+                                    {formatValidade(selectedProduct.prazoValidade)}
+                                </span>
+                            </div>
+                            <div className="modal-row full-width" id='expired'>
                                 <span id='last'>Descrição:</span>
                                 <textarea
                                     value={selectedProduct.descricao}

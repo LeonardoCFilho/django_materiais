@@ -1,33 +1,74 @@
 "use client"
 
-import React from 'react';
+import React, { useState } from 'react';
 import '../css/navmenu.css';
 import Link from 'next/link';
-import { LogOut } from '@geist-ui/icons';
+import { usePathname } from 'next/navigation';
 
 export const NavMenu: React.FC = () => {
-    // Simulando dados do usuário (substitua pelos seus dados reais)
-    const userName = "Nome Completo do Usuário";
+    const [isMenuOpen, setIsMenuOpen] = useState(false);
+    const pathname = usePathname();
+
+    const toggleMenu = () => setIsMenuOpen(!isMenuOpen);
+    const closeMenu = () => setIsMenuOpen(false);
+
+    const handleNavigation = (section: string) => {
+        closeMenu();
+
+        // Se estivermos na página inicial
+        if (pathname === '/') {
+            const element = document.getElementById(section);
+            if (element) {
+                element.scrollIntoView({ behavior: 'smooth' });
+            }
+        }
+        // Se estivermos em outra página
+        else {
+            window.location.href = `/#${section}`;
+        }
+    };
 
     return (
-        <header className="header">
-            <div className="header-container">
-                <div className="logo-container">
-                    <Link href="/" className="logo">
-                        Consulta de Materiais
-                    </Link>
-                </div>
+        <header className="header1">
+            <div className="header-container1">
+                {/* <Link href="/" className="logo1" onClick={closeMenu}>
+                    <img src="/home-baner.png" alt="Logo" />Residência em TI
+                </Link> */}
 
-                <div className="user-section">
-                    <div className="user-info">
-                        <span className="user-name">{userName}</span>
-                    </div>
-                    <button className="logout-button">
-                        <LogOut size={20} className="logout-icon" />
-                    </button>
-                </div>
+                <button
+                    className={`menu-toggle ${isMenuOpen ? 'active' : ''}`}
+                    aria-label="Abrir menu"
+                    onClick={toggleMenu}
+                >
+                    <span className="hamburger"></span>
+                </button>
+
+                <nav className={`nav ${isMenuOpen ? 'active' : ''}`}>
+                    <ul className="nav-list">
+                        <li>
+                            <Link
+                                href="/"
+                                onClick={(e) => {
+                                    e.preventDefault();
+                                    if (pathname === '/') {
+                                        window.scrollTo({ top: 0, behavior: 'smooth' });
+                                    } else {
+                                        window.location.href = '/';
+                                    }
+                                    closeMenu();
+                                }}
+                            >
+                                Início
+                            </Link>
+                        </li>
+                        <li>
+                            <Link href="/validade" onClick={closeMenu}>
+                                Materiais com data de vencimento
+                            </Link>
+                        </li>
+                    </ul>
+                </nav>
             </div>
-            <div className="divider"></div>
         </header>
     );
 };

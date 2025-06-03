@@ -107,6 +107,13 @@
     width: 80px;
 }
 
+.quantity-filter#expired input {
+    padding: 8px;
+    border-radius: 4px;
+    border: 1px solid #032b2e29;
+    width: 250px;
+}
+
 .and-text {
     font-weight: 600;
 }
@@ -140,11 +147,13 @@
     min-height: 38px;
 }
 
-/* Tabela de resultados */
+/* Tabela de resultados - NOVO ESTILO */
 .results-table {
     border-radius: 4px;
     overflow: hidden;
     margin-bottom: 20px;
+    width: 100%;
+    table-layout: fixed;
 }
 
 .table-header {
@@ -175,18 +184,64 @@
     background-color: white;
 }
 
-.col-cod,
-.col-saldo {
-    flex: 1;
+/* Colunas com largura fixa e alinhadas */
+.col-cod {
+    width: 150px; /* Largura fixa para código */
+    min-width: 150px;
     padding: 0 10px;
+    text-align: left;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.col-saldo {
+    width: 100px; /* Largura fixa para saldo */
+    min-width: 100px;
+    padding: 0 10px;
+    text-align: left;
 }
 
 .col-desc {
-    flex: 8;
+    flex: 1; /* Ocupa o espaço restante */
+    min-width: 200px;
     padding: 0 10px;
-    white-space: nowrap;
+    text-align: left;
     overflow: hidden;
     text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.col-validade {
+    width: 200px; /* Largura fixa para validade */
+    min-width: 200px;
+    padding: 0 10px;
+    text-align: left;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+/* Ajuste para o cabeçalho ter as mesmas larguras */
+.table-header .col-cod {
+    width: 150px;
+    min-width: 150px;
+    padding-left: 10px;
+}
+
+.table-header .col-saldo {
+    width: 100px;
+    min-width: 100px;
+}
+
+.table-header .col-desc {
+    flex: 1;
+    min-width: 200px;
+}
+
+.table-header .col-validade {
+    width: 200px;
+    min-width: 200px;
 }
 
 /* Paginação */
@@ -309,6 +364,10 @@
 
 .modal-row.full-width {
     flex-direction: column;
+}
+
+.modal-row.full-width#expired {
+    background-color: #ffffff00;
 }
 
 .modal-row.full-width span#last {
@@ -533,5 +592,23 @@
 
     .pagination {
         flex-wrap: wrap;
+    }
+    
+    /* Ajustes para mobile na tabela */
+    .col-cod, .col-saldo, .col-desc, .col-validade {
+        width: auto !important;
+        min-width: unset !important;
+        flex: 1;
+        font-size: 14px;
+    }
+    
+    .table-header .col-cod,
+    .table-header .col-saldo,
+    .table-header .col-desc,
+    .table-header .col-validade {
+        width: auto !important;
+        min-width: unset !important;
+        flex: 1;
+        font-size: 14px;
     }
 }
