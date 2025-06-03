@@ -3,6 +3,8 @@ from django.http import HttpResponse, JsonResponse
 from django.contrib import messages
 from django.core.paginator import Paginator
 from django.views.decorators.http import require_GET
+from django.utils import timezone
+from datetime import datetime
 import logging
 logger = logging.getLogger("consulta")
 
@@ -12,7 +14,8 @@ def index(request):
     return render(request, "index_consultaOficial.html")
 
 #
-### Consulta de materiais
+## Consulta de materiais
+### Funções para padronização da saída
 def returnListParametrosSQL(key:str) -> list[dict]:
     dictGeral = {
         # Lista para a tela de consulta materiais
@@ -50,7 +53,7 @@ def returnListParametrosSQL(key:str) -> list[dict]:
                 'tipoValor': str,
             },
             {
-                'nomeColuna': "prazoValidade",
+                'nomeColuna': "prazoPassadoLinha",
                 'tipoValor': int,
             },
         ],
@@ -59,7 +62,19 @@ def returnListParametrosSQL(key:str) -> list[dict]:
         "consultaUsoMedioMateriais":[
             {
                 'nomeColuna': "codigo",
-                'tipoValor': str
+                'tipoValor': str,
+            },
+            {
+                'nomeColuna': "qtdRequisitada",
+                'tipoValor': int,
+            },
+            {
+                'nomeColuna': "dataRequisicao",
+                'tipoValor': str,
+            },
+            {
+                'nomeColuna': "prazoPassadoLinha",
+                'tipoValor': int,
             },
         ],                
     }
@@ -82,8 +97,10 @@ def SQLparaList(data, paramList:list[dict] = None) -> list[dict]|None:
         novaListDict.append(dictNovaLinha)
 
     return novaListDict
+### Funções para padronização da saída - END
 
 
+### Funções para filtrar
 def criarFiltrosSQL(param: dict, tiposFiltros:dict) -> list[str]:
     ## Filtros
     #print(param) # debug
@@ -135,7 +152,7 @@ def criarFiltrosSQL(param: dict, tiposFiltros:dict) -> list[str]:
                         # Se não => Não fazer nada
 
                 ## Filtro por validade
-                case "prazoValidade":
+                case "prazoPassadoLinha":
                     if value:
                         listaFiltros.append(f"{tiposFiltros[key]} > {min(0,(-1)*int(value))}")
                 
@@ -157,7 +174,7 @@ def criarFiltrosSQL(param: dict, tiposFiltros:dict) -> list[str]:
         "codigo": tiposFiltros.get('codigo'),
         "descricao": f"NLSSORT(REGEXP_REPLACE({tiposFiltros.get('descricao')}, '^[[:space:]]+', ''), 'NLS_SORT=WEST_EUROPEAN_AI')",
         "saldo": tiposFiltros.get('saldo'),
-        "prazoValidade": tiposFiltros.get('prazoValidade'),
+        "prazoPassadoLinha": tiposFiltros.get('prazoPassadoLinha'),
         # Prazo de validade
     }
     
@@ -185,10 +202,40 @@ def intValido(valor) -> bool:
     except Exception:
         return False
 
+def strParaDatetime(data:str) -> datetime:
+    """
+    Converts a GMT datetime string to the local timezone defined in Django's settings.
 
-def lidarErrosGenericos(erro:Exception) -> str:
+    :param data: The datetime string in GMT, e.g., "Wed, 26 Mar 2025 15:48:14 GMT"
+    :return: A timezone-aware datetime object in the local timezone
+    """
+    # Convert the string to a naive datetime object (no timezone)
+    date_obj = datetime.strptime(data, "%a, %d %b %Y %H:%M:%S GMT")
+    
+    # Make the datetime aware by setting it to UTC (since it's GMT)
+    date_obj = timezone.make_aware(date_obj, timezone.utc)
+    
+    # Convert the UTC datetime to the local timezone
+    local_time = date_obj.astimezone(timezone.get_current_timezone())
+    
+    return local_time
+### Funções para filtrar - END
+## Consulta de materiais - END
+#
+
+
+# 
+## Funções gerais 
+def lidarErrosGenericos(erro:Exception, mensagemCustomizada:str = None) -> str:
     from requests.exceptions import Timeout, RequestException
-    logger.error([type(erro),erro])
+
+    # Fazer log e qualquer outra operação
+    logger.error([type(erro),erro]) 
+
+    # Retornar as mensagens
+    if mensagemCustomizada:
+        return mensagemCustomizada
+    
     match erro:
         case ValueError():
             mensagem_erro = "O código de materiais deve começar com '30'."
@@ -199,12 +246,21 @@ def lidarErrosGenericos(erro:Exception) -> str:
         case _:
             mensagem_erro = "Erro ao carregar o banco de dados."
     return mensagem_erro
-### Consulta de materiais - END
+
+
+def determinarRenderDjango(request) -> bool:
+    """
+    Retorna True se o site está sendo executado pelo Django ou 
+    Retorna False se o site está sendo executado pelo React
+    """
+    wants_json = request.headers.get("Accept") == "application/json" or request.path.startswith("/api/")
+    return not wants_json or 'api' not in request.path
+## Funções gerais - END
 #
 
 
 #
-### API de acesso ao banco de dados Oracle
+## API de acesso ao banco de dados Oracle
 def fetch_data(queryCriada:str, flag_TestarConexaoDatabase:bool=False) -> dict:
     import requests
     import json
@@ -252,7 +308,7 @@ def fetch_data(queryCriada:str, flag_TestarConexaoDatabase:bool=False) -> dict:
         raise e
 
 
-def acessarDatabaseOracle(paramGeral: dict, tipoAcesso:str = "consultaGeralMateriais") -> list[dict]:
+def acessarDatabaseOracle(paramGeral: dict, tipoAcesso:str) -> list[dict]:
     """
     Faz uma query para o banco de dados oracle de acordo com os parametros de entra
 
@@ -288,7 +344,7 @@ WHERE TO_CHAR(CO_MAT) LIKE '30%'
                     "codigo": "MATERIAL.CO_MAT",
                     "descricao": "MATERIAL.DE_MAT",
                     "saldo": "MATERIAL.QT_SALDO_ATU",
-                    "prazoValidade": "ROUND(MATERIAL_VALIDADE.SIMA_DT_VALIDADE - SYSDATE)",                
+                    "prazoPassadoLinha": "ROUND(MATERIAL_VALIDADE.SIMA_DT_VALIDADE - SYSDATE)",                
                 }
                 queryInicialDB = """
 SELECT 
@@ -308,7 +364,21 @@ WHERE
 """
 
             case "consultaUsoMedioMateriais":
-                ...
+                dictFiltros = { 
+                    "codigo": "MOVIMENTO_SAIDA_DEFINITIVO.CO_MAT",
+                    "prazoPassadoLinha": "ROUND(MOVIMENTO_SAIDA_DEFINITIVO.DT_BAIXA_REQ - SYSDATE)",               
+                }
+                queryInicialDB = """
+SELECT 
+    MOVIMENTO_SAIDA_DEFINITIVO.CO_MAT,
+    MOVIMENTO_SAIDA_DEFINITIVO.NU_REQ,
+    MOVIMENTO_SAIDA_DEFINITIVO.DT_BAIXA_REQ,
+    ROUND(MOVIMENTO_SAIDA_DEFINITIVO.DT_BAIXA_REQ - SYSDATE) AS dias_diff
+FROM 
+    SICAM.MOVIMENTO_SAIDA_DEFINITIVO
+WHERE 
+    TO_CHAR(MOVIMENTO_SAIDA_DEFINITIVO.CO_MAT) LIKE '30%'
+"""
 
             case _:
                raise KeyError("tipoAcesso invalido")
@@ -329,12 +399,12 @@ WHERE
     except Exception as e:
        logger.error([type(e),e])
        raise e
-### API de acesso ao banco de dados Oracle - END
+## API de acesso ao banco de dados Oracle - END
 #
 
 
 #
-### Consulta geral de materiais
+## Consulta geral de materiais
 @require_GET
 def material_pesquisa2(request):
 
@@ -342,10 +412,10 @@ def material_pesquisa2(request):
 
 
     # Detectar se é django ou react
-    wants_json = request.headers.get("Accept") == "application/json" or request.path.startswith("/api/")
-    flagRenderDjango = not wants_json or request.path == "/materiaisPesquisa/"
-    # Se flagRenderDjango for True então vai ser o .html do Django
-    # Se não então será enviado o json para o react
+    flagRenderDjango = determinarRenderDjango(request)
+    ## Se flagRenderDjango for True então vai ser o .html do Django
+    ## Se não então será enviado o json para o react
+    
     flagExceptionAchada = False
 
     try:
@@ -402,12 +472,12 @@ def material_pesquisa2(request):
         if flagRenderDjango:
             return render(request, "material_pesquisa.html", {"page_obj": []})
         return JsonResponse({"error": str(mensagem_erro)}, status=500)
-### Consulta geral de materiais - END
+## Consulta geral de materiais - END
 #
 
 
 #
-### Consulta de validade de materiais
+## Consulta de validade de materiais
 @require_GET
 def consultaValidadeMateriais(request):
 
@@ -415,10 +485,10 @@ def consultaValidadeMateriais(request):
 
 
     # Detectar se é django ou react
-    wants_json = request.headers.get("Accept") == "application/json" or request.path.startswith("/api/")
-    flagRenderDjango = not wants_json or request.path == "/materiaisValidade/"
-    # Se flagRenderDjango for True então vai ser o .html do Django
-    # Se não então será enviado o json para o react
+    flagRenderDjango = determinarRenderDjango(request)
+    ## Se flagRenderDjango for True então vai ser o .html do Django
+    ## Se não então será enviado o json para o react
+    
     flagExceptionAchada = False
 
     try:
@@ -433,10 +503,10 @@ def consultaValidadeMateriais(request):
             "saldo_filter": request.GET.get("saldo_filter", "") or "",
             "saldo": request.GET.get("saldo", "") or "",
             "saldoMax": request.GET.get("saldo_between_end", "") or "",
-            "prazoValidade": request.GET.get("prazoValidade", "") or "",
+            "prazoPassadoLinha": request.GET.get("prazoValidade", "") or "",
             # Ordenar do que tem mais prazo ate vencer
             "ordemOrdenacao": request.GET.get("ordemOrdenacao", "d"),
-            "campoOrdenacao": request.GET.get("campoOrdenacao", "prazoValidade"),
+            "campoOrdenacao": request.GET.get("campoOrdenacao", "prazoPassadoLinha"),
         }
 
         queryset = acessarDatabaseOracle(param, "consultaValidadeMateriais")
@@ -473,6 +543,92 @@ def consultaValidadeMateriais(request):
         if flagRenderDjango:
             return render(request, "material_validade.html", {"page_obj": []})
         return JsonResponse({"error": str(mensagem_erro)}, status=500)
+## Consulta de validade de materiais - END
+#
 
-### Consulta de validade de materiais - END
+
+#
+## Consulta consumo medio
+@require_GET
+def consultaConsumoMedioMateriais(request):
+
+    # Logica de login
+
+
+    # Detectar se é django ou react
+    flagRenderDjango = determinarRenderDjango(request)
+    ## Se flagRenderDjango for True então vai ser o .html do Django
+    ## Se não então será enviado o json para o react
+    
+    flagExceptionAchada = False
+
+    try:
+        # Parâmetros de paginação
+        page_number = int(request.GET.get("page", 1))
+        page_size = int(request.GET.get("page_size", 10))
+
+        # Aplicar filtros com valores padrão seguros
+        param = {
+            "codigo": request.GET.get("codigo", "") or "",
+            "prazoPassadoLinha": request.GET.get("periodoMedia", "1") or "1", # Converter para mês comercial dps
+            # Ordenação
+            "ordemOrdenacao": request.GET.get("ordemOrdenacao", "d"),
+            "campoOrdenacao": request.GET.get("campoOrdenacao", "prazoPassadoLinha"),
+        }
+
+        if param['codigo'] and len(param['codigo']) == 10:
+            param['prazoPassadoLinha'] = int(param['prazoPassadoLinha'])*30 # Conversao mencionada
+            queryset = acessarDatabaseOracle(param, "consultaUsoMedioMateriais")
+        else:
+            mensagem_erro = lidarErrosGenericos(ValueError("Codigo do produto não foi fornecido"), "O codigo completo do produto deve ser fornecido!")
+            messages.error(request, mensagem_erro)
+            flagExceptionAchada = True
+            queryset = None
+        
+
+        # Calcular a media
+        somaParaMedia = 0
+        for elemento in queryset:
+            somaParaMedia += elemento['qtdRequisitada']
+        average_camp = round(somaParaMedia / (param['prazoPassadoLinha']/30),2)
+        data = {
+            'mediaConsumo': average_camp,
+        }
+        
+
+        if not queryset:
+            queryset = []
+        
+
+        # Paginação
+        paginator = Paginator(queryset, page_size)
+        ## Removendo um caso de erro
+        if page_number > paginator.num_pages:
+            page_number = 1 
+        page_obj = paginator.get_page(page_number) 
+
+        # Se for django => render a pagina
+        if flagRenderDjango:
+            return render(request, "material_consumo_medio.html", {"data": data, "page_obj": page_obj,})
+        # Se não => json para o react
+        return JsonResponse(
+            {
+                "count": paginator.count,
+                "total_pages": paginator.num_pages,
+                "results": list(page_obj.object_list),  # Apenas os resultados da página atual
+                "current_page": page_obj.number,
+            }
+        )
+
+    except Exception as e: # Dependendo especificar mais
+        mensagem_erro = lidarErrosGenericos(e)
+        messages.error(request, mensagem_erro)
+        flagExceptionAchada = True
+
+    # Deu erro => renderizar especial
+    if flagExceptionAchada:
+        if flagRenderDjango:
+            return render(request, "material_consumo_medio.html", {"page_obj": []})
+        return JsonResponse({"error": str(mensagem_erro)}, status=500)
+## Consulta consumo medio - END
 #
