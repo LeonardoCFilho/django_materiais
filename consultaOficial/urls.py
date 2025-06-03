@@ -18,4 +18,6 @@ urlpatterns = [
     # Consulta de validade
     ## Prototipo backend
     path("materiaisValidade/", require_GET(views.consultaValidadeMateriais), name="material_validade"),
+    ## Versão oficial (react)
+    path("api/materiaisValidade/", require_GET(views.consultaValidadeMateriais), name="material_validade_api"),
 ]

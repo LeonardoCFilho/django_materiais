@@ -387,7 +387,7 @@ def material_pesquisa2(request):
             {
                 "count": paginator.count,
                 "total_pages": paginator.num_pages,
-                "results": queryset,
+                "results": list(page_obj.object_list),  # Apenas os resultados da página atual
                 "current_page": page_obj.number,
             }
         )
@@ -458,7 +458,7 @@ def consultaValidadeMateriais(request):
             {
                 "count": paginator.count,
                 "total_pages": paginator.num_pages,
-                "results": queryset,
+                "results": list(page_obj.object_list),  # Apenas os resultados da página atual
                 "current_page": page_obj.number,
             }
         )
