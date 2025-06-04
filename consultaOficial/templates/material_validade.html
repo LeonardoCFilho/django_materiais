@@ -164,10 +164,10 @@
                     <td>{{ material.codigo }}</td>
                     <td>{{ material.descricao }}</td>
                     <td>{{ material.saldo }}</td>
-                    {% if material.prazoValidade < 0 %}
-                        <td>Vencido:{{ material.prazoValidade }}</td>
+                    {% if material.prazoPassadoLinha < 0 %}
+                        <td>Vencido: {{ material.prazoPassadoLinha }}</td>
                     {% else %}
-                        <td>{{ material.prazoValidade }}</td>
+                        <td>{{ material.prazoPassadoLinha }}</td>
                     {% endif %}
                 </tr>
                 {% endfor %}

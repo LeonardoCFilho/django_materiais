@@ -202,6 +202,7 @@ def intValido(valor) -> bool:
     except Exception:
         return False
 
+
 def strParaDatetime(data:str) -> datetime:
     """
     Converts a GMT datetime string to the local timezone defined in Django's settings.
