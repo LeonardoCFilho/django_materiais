@@ -1,5 +1,6 @@
 from django.shortcuts import render
 from django.http import HttpResponse, JsonResponse
+from django.http import Http404
 from django.contrib import messages
 from django.core.paginator import Paginator
 from django.views.decorators.http import require_GET
@@ -50,7 +51,7 @@ def returnListParametrosSQL(key:str) -> list[dict]:
             },
             {
                 'nomeColuna': "dataValidade",
-                'tipoValor': str,
+                'tipoValor': strParaDatetime,
             },
             {
                 'nomeColuna': "prazoPassadoLinha",
@@ -70,7 +71,7 @@ def returnListParametrosSQL(key:str) -> list[dict]:
             },
             {
                 'nomeColuna': "dataRequisicao",
-                'tipoValor': str,
+                'tipoValor': strParaDatetime,
             },
             {
                 'nomeColuna': "prazoPassadoLinha",
@@ -78,10 +79,13 @@ def returnListParametrosSQL(key:str) -> list[dict]:
             },
         ],                
     }
-    return dictGeral.get(key, None)
+
+    if key not in dictGeral:
+        raise KeyError(f"Chave requisitada {key} não existe no dicionario de referencia")
+    return dictGeral[key]
 
 
-def SQLparaList(data, paramList:list[dict] = None) -> list[dict]|None:
+def SQLparaList(data, paramList:list[dict]) -> list[dict]|None:
     # Caso de erro
     if not data or "error" in data or "rows" not in data:
         logger.error(data)
@@ -210,11 +214,12 @@ def strParaDatetime(data:str) -> datetime:
     :param data: The datetime string in GMT, e.g., "Wed, 26 Mar 2025 15:48:14 GMT"
     :return: A timezone-aware datetime object in the local timezone
     """
+    from datetime import timezone as datetime_timezone
     # Convert the string to a naive datetime object (no timezone)
     date_obj = datetime.strptime(data, "%a, %d %b %Y %H:%M:%S GMT")
     
     # Make the datetime aware by setting it to UTC (since it's GMT)
-    date_obj = timezone.make_aware(date_obj, timezone.utc)
+    date_obj = timezone.make_aware(date_obj, datetime_timezone.utc)
     
     # Convert the UTC datetime to the local timezone
     local_time = date_obj.astimezone(timezone.get_current_timezone())
@@ -240,12 +245,14 @@ def lidarErrosGenericos(erro:Exception, mensagemCustomizada:str = None) -> str:
     match erro:
         case ValueError():
             mensagem_erro = "O código de materiais deve começar com '30'."
+        case Http404():
+            mensagem_erro = "Erro na busca de materiais"
         case Timeout():
             mensagem_erro = "Timeout tentando conectar com o banco de dados\nTente novamente em breve."
         case RequestException():
             mensagem_erro = "Não foi possível estabelecer uma conexão com o servidor. Verifique a conexão."
         case _:
-            mensagem_erro = "Erro ao carregar o banco de dados."
+            mensagem_erro = f"Erro ao carregar o banco de dados.\nErro inesperado: {str(erro)}."
     return mensagem_erro
 
 
@@ -254,8 +261,10 @@ def determinarRenderDjango(request) -> bool:
     Retorna True se o site está sendo executado pelo Django ou 
     Retorna False se o site está sendo executado pelo React
     """
-    wants_json = request.headers.get("Accept") == "application/json" or request.path.startswith("/api/")
-    return not wants_json or 'api' not in request.path
+    wants_json = "application/json" in request.headers.get("Accept", "")
+    if wants_json or request.path.startswith("/api/"):
+        return False
+    return True
 ## Funções gerais - END
 #
 
@@ -408,6 +417,21 @@ WHERE
 ## Consulta geral de materiais
 @require_GET
 def material_pesquisa2(request):
+    """
+    Returns:
+        list de dict, padrão dict:
+        {
+            'codigo': str, 
+            'descricao': str, 
+            'saldo': int
+        }
+        Ex.:
+        {
+            'codigo': '3010006034', 
+            'descricao': 'ABAIXADOR DE LÍNGUA, DE MADEIRA, PACOTE COM 100 UNIDADES', 
+            'saldo': 0
+        }
+    """
 
     # Logica de login
 
@@ -431,17 +455,18 @@ def material_pesquisa2(request):
             "saldo_filter": request.GET.get("saldo_filter", "") or "",
             "saldo": request.GET.get("saldo", "") or "",
             "saldoMax": request.GET.get("saldo_between_end", "") or "",
+            "usoDesuso": request.GET.get("usoDesuso", "uso") or "",
+            # Ordenação
             "ordemOrdenacao": request.GET.get("ordemOrdenacao", "c") or "c",
             "campoOrdenacao": request.GET.get("campoOrdenacao", "descricao") or "descricao",
-            "usoDesuso": request.GET.get("usoDesuso", "uso") or ""
         }
 
         # Acessando o banco de dados
         queryset = acessarDatabaseOracle(param, "consultaGeralMateriais")
 
-        # Se não houver resultados ou ocorrer erro, retornar lista vazia
-        if not queryset:
-            queryset = []
+        # Caso de erro
+        if queryset is None:
+            raise Http404("Erro ao buscar o material")
 
         # Paginação
         paginator = Paginator(queryset, page_size)
@@ -481,6 +506,25 @@ def material_pesquisa2(request):
 ## Consulta de validade de materiais
 @require_GET
 def consultaValidadeMateriais(request):
+    """
+    Returns:
+        list de dict, padrão dict:
+        {
+            'codigo': str, 
+            'descricao': str, 
+            'saldo': int, 
+            'dataValidade': datetime.datetime,
+            'prazoPassadoLinha': int
+        }
+        Ex.:
+        {
+            'codigo': '3024045079', 
+            'descricao': 'TINTA ACRÍLICA PREMIUM...', 
+            'saldo': 4, 
+            'dataValidade': datetime.datetime(2026, 2, 28, 21, 0, tzinfo=zoneinfo.ZoneInfo(key='America/Sao_Paulo')),
+            'prazoPassadoLinha': 270
+        }
+    """
 
     # Logica de login
 
@@ -511,8 +555,10 @@ def consultaValidadeMateriais(request):
         }
 
         queryset = acessarDatabaseOracle(param, "consultaValidadeMateriais")
-        if not queryset:
-            queryset = []
+        
+        # Caso de erro
+        if queryset is None:
+            raise Http404("Erro ao buscar o material")
 
         # Paginação
         paginator = Paginator(queryset, page_size)
@@ -552,6 +598,23 @@ def consultaValidadeMateriais(request):
 ## Consulta consumo medio
 @require_GET
 def consultaConsumoMedioMateriais(request):
+    """
+    Returns:
+        dict data com valor da media (data['mediaConsumo']) & list de dict, padrão dict:
+        {
+            'codigo': str, 
+            'qtdRequisitada': int, 
+            'dataRequisicao': datetime.datetime, 
+            'prazoPassadoLinha': int
+        }
+        Ex.:
+        {
+            'codigo': '3016007002', 
+            'qtdRequisitada': 60, 
+            'dataRequisicao': datetime.datetime(2025, 3, 26, 12, 48, 14, tzinfo=zoneinfo.ZoneInfo(key='America/Sao_Paulo')), 
+            'prazoPassadoLinha': -69
+        }
+    """
 
     # Logica de login
 
@@ -584,22 +647,21 @@ def consultaConsumoMedioMateriais(request):
             mensagem_erro = lidarErrosGenericos(ValueError("Codigo do produto não foi fornecido"), "O codigo completo do produto deve ser fornecido!")
             messages.error(request, mensagem_erro)
             flagExceptionAchada = True
-            queryset = None
+            queryset = []
         
 
         # Calcular a media
         somaParaMedia = 0
         for elemento in queryset:
             somaParaMedia += elemento['qtdRequisitada']
-        average_camp = round(somaParaMedia / (param['prazoPassadoLinha']/30),2)
+        average_camp = round(somaParaMedia / (int(param['prazoPassadoLinha'])/30),2)
         data = {
             'mediaConsumo': average_camp,
         }
         
-
-        if not queryset:
-            queryset = []
-        
+        # Caso de erro
+        if queryset is None:
+            raise Http404("Erro ao buscar o material")
 
         # Paginação
         paginator = Paginator(queryset, page_size)
