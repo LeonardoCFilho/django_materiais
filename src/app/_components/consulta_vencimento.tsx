@@ -10,7 +10,7 @@ interface Product {
     saldo: number;
     descricao: string;
     dataValidade: string;
-    prazoValidade: number;
+    prazoPassadoLinha: number; 
 }
 
 export const Vencimento: React.FC = () => {
@@ -80,7 +80,7 @@ export const Vencimento: React.FC = () => {
         }
         
         // Ordenação (ajustada para o backend)
-        params.append('campoOrdenacao', 'prazoValidade');
+        params.append('campoOrdenacao', 'prazoPassadoLinha');
         params.append('ordemOrdenacao', 'd'); // 'd' para descendente (vencendo primeiro)
         
         return params;
@@ -434,10 +434,10 @@ export const Vencimento: React.FC = () => {
                                 onClick={() => setSelectedProduct(product)}
                                 style={{ 
                                     cursor: 'pointer',
-                                    color: product.prazoValidade < 0 ? 'red' : 'inherit'
+                                    color: product.prazoPassadoLinha < 0 ? 'red' : 'inherit'
                                 }}
                             >
-                                {formatValidade(product.prazoValidade)}
+                                {formatValidade(product.prazoPassadoLinha)}
                             </div>
                         </div>
                     ))
@@ -540,8 +540,8 @@ export const Vencimento: React.FC = () => {
                             </div>
                             <div className="modal-row">
                                 <span>Validade:</span>
-                                <span style={{ color: selectedProduct.prazoValidade < 0 ? 'red' : 'inherit' }}>
-                                    {formatValidade(selectedProduct.prazoValidade)}
+                                <span style={{ color: selectedProduct.prazoPassadoLinha < 0 ? 'red' : 'inherit' }}>
+                                    {formatValidade(selectedProduct.prazoPassadoLinha)}
                                 </span>
                             </div>
                             <div className="modal-row full-width" id='expired'>
