@@ -7,7 +7,7 @@
     font-family: "Inter", sans-serif;
 }
 
-.error-message{
+.error-message {
     background-color: rgba(255, 0, 0, 0.8);
     border: 2px solid red;
     font-size: 20px;
@@ -61,6 +61,7 @@
     color: #3E3E3E;
     font-size: 18px;
     font-weight: 500;
+    text-align: center;
 }
 
 /* Filtros principais */
@@ -172,6 +173,10 @@
     cursor: pointer;
 }
 
+#copy-svg {
+    margin-top: 4.1px;
+}
+
 .table-row:hover {
     background-color: #f0f0f0;
 }
@@ -186,7 +191,10 @@
 
 /* Colunas com largura fixa e alinhadas */
 .col-cod {
-    width: 150px; /* Largura fixa para código */
+    display: flex;
+    gap: 8px;
+    width: 150px;
+    /* Largura fixa para código */
     min-width: 150px;
     padding: 0 10px;
     text-align: left;
@@ -196,14 +204,16 @@
 }
 
 .col-saldo {
-    width: 100px; /* Largura fixa para saldo */
+    width: 100px;
+    /* Largura fixa para saldo */
     min-width: 100px;
     padding: 0 10px;
     text-align: left;
 }
 
 .col-desc {
-    flex: 1; /* Ocupa o espaço restante */
+    flex: 1;
+    /* Ocupa o espaço restante */
     min-width: 200px;
     padding: 0 10px;
     text-align: left;
@@ -213,7 +223,8 @@
 }
 
 .col-validade {
-    width: 200px; /* Largura fixa para validade */
+    width: 200px;
+    /* Largura fixa para validade */
     min-width: 200px;
     padding: 0 10px;
     text-align: left;
@@ -362,12 +373,16 @@
     background-color: white;
 }
 
+#white {
+    background-color: #ffffff;
+}
+
 .modal-row.full-width {
     flex-direction: column;
 }
 
 .modal-row.full-width#expired {
-    background-color: #ffffff00;
+    background-color: #032b2e29;
 }
 
 .modal-row.full-width span#last {
@@ -593,15 +608,18 @@
     .pagination {
         flex-wrap: wrap;
     }
-    
+
     /* Ajustes para mobile na tabela */
-    .col-cod, .col-saldo, .col-desc, .col-validade {
+    .col-cod,
+    .col-saldo,
+    .col-desc,
+    .col-validade {
         width: auto !important;
         min-width: unset !important;
         flex: 1;
         font-size: 14px;
     }
-    
+
     .table-header .col-cod,
     .table-header .col-saldo,
     .table-header .col-desc,

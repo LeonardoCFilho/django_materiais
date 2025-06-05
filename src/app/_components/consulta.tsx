@@ -43,24 +43,24 @@ export const Consulta: React.FC = () => {
     // Função para construir parâmetros de consulta ALINHADOS COM O BACKEND
     const buildQueryParams = (): URLSearchParams => {
         const params = new URLSearchParams();
-        
+
         // Paginação
         params.append('page', currentPage.toString());
         params.append('page_size', itemsPerPage.toString());
-        
+
         // Filtros
         if (codFilter) params.append('codigo', codFilter);
         if (descFilter) params.append('descricao', descFilter);
-        
+
         // Filtro de uso/desuso - VALORES EXATOS QUE O BACKEND ESPERA
         if (usoFilter === 'uso' || usoFilter === 'desuso' || usoFilter === 'uso+desuso') {
             params.append('usoDesuso', usoFilter);
         }
-        
+
         // Filtro de saldo - ALINHADO COM O BACKEND
         if (quantValue1) {
             params.append('saldo', quantValue1);
-            
+
             // Mapeamento de operadores para os valores que o backend espera
             const operatorMap: Record<string, string> = {
                 'menor ou igual a': 'menorq',
@@ -68,20 +68,20 @@ export const Consulta: React.FC = () => {
                 'igual a': 'igual',
                 'entre': 'entre'
             };
-            
+
             if (operatorMap[quantFilter]) {
                 params.append('saldo_filter', operatorMap[quantFilter]);
-                
+
                 if (quantFilter === 'entre' && quantValue2) {
                     params.append('saldo_between_end', quantValue2);
                 }
             }
         }
-        
+
         // Ordenação - VALORES PADRÃO DO BACKEND
         params.append('campoOrdenacao', 'descricao');
         params.append('ordemOrdenacao', 'c');
-        
+
         return params;
     };
 
@@ -89,15 +89,15 @@ export const Consulta: React.FC = () => {
     const fetchProducts = useCallback(async () => {
         setLoading(true);
         setError(null);
-        
+
         try {
             const queryParams = buildQueryParams();
             const url = `${API_URL}?${queryParams.toString()}`;
-            
+
             console.log("URL da API:", url); // Para depuração
-            
+
             const response = await fetch(url);
-            
+
             if (!response.ok) {
                 throw new Error(`Erro ao carregar banco de dados`);
             }
@@ -106,7 +106,7 @@ export const Consulta: React.FC = () => {
             setProducts(data.results || []);  // Agora results contém apenas os itens da página atual
             setTotalPages(data.total_pages || 1);
             setCurrentPage(data.current_page || 1);
-            
+
         } catch (err) {
             setError(err instanceof Error ? err.message : 'Erro desconhecido');
         } finally {
@@ -125,31 +125,32 @@ export const Consulta: React.FC = () => {
     const applyFilters = () => {
         // Validação do código
         if (tempCodFilter && !tempCodFilter.startsWith('30')) {
-                setValidationError('⚠️ O código de materiais deve começar com 30');
-                setError(null); // Limpa erros anteriores da API
-                return; // Impede a requisição à API
-            }
-            
-            setValidationError(null); // Limpa erros de validação
-            setError(null); // Limpa erros da API
+            setValidationError('⚠️ O código de materiais deve começar com 30');
+            setError(null); // Limpa erros anteriores da API
+            return; // Impede a requisição à API
+        }
 
-            setCodFilter(tempCodFilter);
-            setDescFilter(tempDescFilter);
-            setQuantValue1(tempQuantValue1);
-            setQuantValue2(tempQuantValue2);
-            setQuantFilter(tempQuantFilter);
-            setUsoFilter(tempUsoFilter);
-            
-            // Primeiro aplica os filtros, depois ajusta a página
-            const newPage = Math.max(1, Math.min(totalPages, Number(tempPageInput) || 1));
-            
-            // Se a página atual for maior que o novo total de páginas, vamos para a última página
-            const adjustedPage = Math.min(newPage, totalPages);
-            
-            setCurrentPage(adjustedPage);
-            setTempPageInput(adjustedPage.toString());
+        setValidationError(null); // Limpa erros de validação
+        setError(null); // Limpa erros da API
+
+        setCodFilter(tempCodFilter);
+        setDescFilter(tempDescFilter);
+        setQuantValue1(tempQuantValue1);
+        setQuantValue2(tempQuantValue2);
+        setQuantFilter(tempQuantFilter);
+        setUsoFilter(tempUsoFilter);
+
+        // Primeiro aplica os filtros, depois ajusta a página
+        const newPage = Math.max(1, Math.min(totalPages, Number(tempPageInput) || 1));
+
+        // Se a página atual for maior que o novo total de páginas, vamos para a última página
+        const adjustedPage = Math.min(newPage, totalPages);
+
+        // SEMPRE volta para a página 1 quando filtros mudam
+        setCurrentPage(1);
+        setTempPageInput('1');
     };
-    
+
     const copyToClipboard = (text: string) => {
         navigator.clipboard.writeText(text)
             .then(() => {
@@ -171,7 +172,7 @@ export const Consulta: React.FC = () => {
         setTempDescFilter('');
         setTempPageInput('1');
         setTempUsoFilter('uso');
-        
+
         setCodFilter('');
         setDescFilter('');
         setQuantValue1('');
@@ -193,7 +194,7 @@ export const Consulta: React.FC = () => {
         if (e.shiftKey && e.key === 'Enter') {
             return; // Permite o comportamento padrão (nova linha)
         }
-        
+
         // Apenas Enter - aplica filtros e previne quebra de linha
         if (e.key === 'Enter') {
             e.preventDefault();
@@ -209,7 +210,8 @@ export const Consulta: React.FC = () => {
         <div className="consulta-container">
             {/* Container de filtros superior */}
             <div className="filter-header">
-                <p id='mobile' className="instruction-text">Clique na linha para ver descrição completa</p>
+                <p id='mobile' className="instruction-text">Clique na linha para ver descrição completa<br />
+                    Clique no código para copiar</p>
                 <button
                     className="filter-btn clear-btn"
                     onClick={clearFilters}
@@ -227,7 +229,10 @@ export const Consulta: React.FC = () => {
                         </span>
                     </div>
                 </button>
-                <p className="instruction-text">Clique na linha para ver descrição completa</p>
+                <p className="instruction-text">
+                    Clique na linha para ver descrição completa<br />
+                    Clique no código para copiar
+                </p>
                 <button
                     className="filter-btn apply-btn"
                     onClick={applyFilters}
@@ -325,24 +330,24 @@ export const Consulta: React.FC = () => {
                     <div className="search-input">
                         <Search size={16} className="search-icon" onClick={applyFilters} />
                         <textarea
-                        value={tempDescFilter}
-                        onChange={(e) => setTempDescFilter(e.target.value)}
-                        placeholder="Pesquisar..."
-                        rows={1}
-                        disabled={loading}
-                        onKeyDown={handleTextareaKeyPress}  // Usamos onKeyDown para melhor controle
-                        style={{ 
-                            resize: 'none', 
-                            minHeight: '38px',
-                            whiteSpace: 'pre-wrap' // Mantém as quebras de linha quando existirem
-                        }}
-                        onInput={(e) => {
-                            // Auto-ajuste de altura
-                            const target = e.target as HTMLTextAreaElement;
-                            target.style.height = 'auto';
-                            target.style.height = target.scrollHeight + 'px';
-                        }}
-                    />
+                            value={tempDescFilter}
+                            onChange={(e) => setTempDescFilter(e.target.value)}
+                            placeholder="Pesquisar..."
+                            rows={1}
+                            disabled={loading}
+                            onKeyDown={handleTextareaKeyPress}  // Usamos onKeyDown para melhor controle
+                            style={{
+                                resize: 'none',
+                                minHeight: '38px',
+                                whiteSpace: 'pre-wrap' // Mantém as quebras de linha quando existirem
+                            }}
+                            onInput={(e) => {
+                                // Auto-ajuste de altura
+                                const target = e.target as HTMLTextAreaElement;
+                                target.style.height = 'auto';
+                                target.style.height = target.scrollHeight + 'px';
+                            }}
+                        />
                     </div>
                 </div>
             </div>
@@ -383,8 +388,8 @@ export const Consulta: React.FC = () => {
                             key={`${product.codigo}-${index}`}
                             className={`table-row ${index % 2 === 0 ? 'even' : 'odd'}`}
                         >
-                            <div 
-                                className="col-cod" 
+                            <div
+                                className="col-cod"
                                 onClick={() => copyToClipboard(product.codigo)}
                                 style={{
                                     cursor: 'pointer',
@@ -393,6 +398,19 @@ export const Consulta: React.FC = () => {
                                 title={copiedCode === product.codigo ? 'Código copiado!' : 'Clique para copiar o código'}
                             >
                                 {product.codigo}
+                                <svg id='copy-svg'
+                                    width="16"
+                                    height="16"
+                                    viewBox="0 0 24 24"
+                                    fill="none"
+                                    stroke="currentColor"
+                                    strokeWidth="2"
+                                    strokeLinecap="round"
+                                    strokeLinejoin="round"
+                                >
+                                    <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
+                                    <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
+                                </svg>
                                 {copiedCode === product.codigo && (
                                     <span style={{
                                         position: 'absolute',
@@ -403,17 +421,17 @@ export const Consulta: React.FC = () => {
                                     }}>Código copiado! ✓</span>
                                 )}
                             </div>
-                            
-                            <div 
+
+                            <div
                                 className="col-saldo"
                                 onClick={() => setSelectedProduct(product)}
                                 style={{ cursor: 'pointer' }}
                             >
                                 {product.saldo}
                             </div>
-                            
-                            <div 
-                                className="col-desc" 
+
+                            <div
+                                className="col-desc"
                                 onClick={() => setSelectedProduct(product)}
                                 title={product.descricao}
                                 style={{ cursor: 'pointer' }}
@@ -452,31 +470,31 @@ export const Consulta: React.FC = () => {
 
                     <span className="page-input">
                         Página <input
-                        type="number"
-                        min="1"
-                        max={totalPages}
-                        value={tempPageInput}
-                        onChange={(e) => {
-                            const value = e.target.value;
-                            // Permite apenas números ou string vazia
-                            if (value === '' || /^[0-9\b]+$/.test(value)) {
-                                const numValue = value === '' ? 1 : parseInt(value, 10);
-                                // Garante que o valor não exceda o total de páginas
-                                const clampedValue = Math.min(Math.max(1, numValue), totalPages);
-                                setTempPageInput(clampedValue.toString());
-                            }
-                        }}
-                        onBlur={() => {
-                            // Quando perde o foco, corrige qualquer valor inválido
-                            const page = Math.max(1, Math.min(totalPages, Number(tempPageInput) || 1));
-                            setTempPageInput(page.toString());
-                            if (page !== currentPage) {
-                                setCurrentPage(page);
-                            }
-                        }}
-                        onKeyPress={handleKeyPress}
-                        disabled={loading}
-                    /> de {totalPages}
+                            type="number"
+                            min="1"
+                            max={totalPages}
+                            value={tempPageInput}
+                            onChange={(e) => {
+                                const value = e.target.value;
+                                // Permite apenas números ou string vazia
+                                if (value === '' || /^[0-9\b]+$/.test(value)) {
+                                    const numValue = value === '' ? 1 : parseInt(value, 10);
+                                    // Garante que o valor não exceda o total de páginas
+                                    const clampedValue = Math.min(Math.max(1, numValue), totalPages);
+                                    setTempPageInput(clampedValue.toString());
+                                }
+                            }}
+                            onBlur={() => {
+                                // Quando perde o foco, corrige qualquer valor inválido
+                                const page = Math.max(1, Math.min(totalPages, Number(tempPageInput) || 1));
+                                setTempPageInput(page.toString());
+                                if (page !== currentPage) {
+                                    setCurrentPage(page);
+                                }
+                            }}
+                            onKeyPress={handleKeyPress}
+                            disabled={loading}
+                        /> de {totalPages}
                     </span>
 
                     <button
@@ -522,7 +540,44 @@ export const Consulta: React.FC = () => {
                             </div>
                             <div id="white" className="modal-row">
                                 <span>Código:</span>
-                                <span>{selectedProduct.codigo}</span>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                    <span style={{ fontWeight: '400' }}>{selectedProduct.codigo}</span>
+                                    <button
+                                        onClick={(e) => {
+                                            e.stopPropagation();
+                                            copyToClipboard(selectedProduct.codigo);
+                                        }}
+                                        style={{
+                                            background: 'none',
+                                            border: 'none',
+                                            cursor: 'pointer',
+                                            display: 'flex',
+                                            alignItems: 'center'
+                                        }}
+                                        title="Copiar código"
+                                    >
+                                        {copiedCode === selectedProduct.codigo ? (
+                                            <span style={{ color: 'green', fontSize: '0.8em' }}>✓</span>
+                                        ) : (
+                                            <svg
+                                                width="16"
+                                                height="16"
+                                                viewBox="0 0 24 24"
+                                                fill="none"
+                                                stroke="currentColor"
+                                                strokeWidth="2"
+                                                strokeLinecap="round"
+                                                strokeLinejoin="round"
+                                            >
+                                                <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
+                                                <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
+                                            </svg>
+                                        )}
+                                    </button>
+                                    {copiedCode === selectedProduct.codigo && (
+                                        <span style={{ color: 'green', fontSize: '0.8em' }}>Copiado!</span>
+                                    )}
+                                </div>
                             </div>
                             <div className="modal-row full-width">
                                 <span id='last'>Descrição:</span>

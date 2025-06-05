@@ -13,7 +13,7 @@ export const Header: React.FC = () => {
         <header className="header">
             <div className="header-container">
                 <div className="logo-container">
-                    Consulta de Materiais
+                    Requisição Fácil
                 </div>
 
                 <div className="user-section">

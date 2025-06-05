@@ -10,7 +10,7 @@ interface Product {
     saldo: number;
     descricao: string;
     dataValidade: string;
-    prazoPassadoLinha: number; 
+    prazoPassadoLinha: number;
 }
 
 export const Vencimento: React.FC = () => {
@@ -42,73 +42,77 @@ export const Vencimento: React.FC = () => {
     const itemsPerPage = 10;
     const [validationError, setValidationError] = useState<string | null>(null);
     const [copiedCode, setCopiedCode] = useState<string | null>(null);
+    const formatDate = (dateString: string) => {
+        const date = new Date(dateString);
+        return date.toLocaleDateString('pt-BR'); // Formato brasileiro: dd/mm/yyyy
+    };
 
     const buildQueryParams = (): URLSearchParams => {
         const params = new URLSearchParams();
-        
+
         // Paginação
         params.append('page', currentPage.toString());
         params.append('page_size', itemsPerPage.toString());
-        
+
         // Filtros
         if (codFilter) params.append('codigo', codFilter);
         if (descFilter) params.append('descricao', descFilter);
-        
+
         // Filtro de saldo
         if (quantValue1) {
             params.append('saldo', quantValue1);
-            
+
             const operatorMap: Record<string, string> = {
                 'menor ou igual a': 'menorq',
                 'maior ou igual a': 'maiorq',
                 'igual a': 'igual',
                 'entre': 'entre'
             };
-            
+
             if (operatorMap[quantFilter]) {
                 params.append('saldo_filter', operatorMap[quantFilter]);
-                
+
                 if (quantFilter === 'entre' && quantValue2) {
                     params.append('saldo_between_end', quantValue2);
                 }
             }
         }
-        
+
         // Filtro de validade (ajustado para o backend)
         if (validadeFilter) {
             params.append('prazoValidade', validadeFilter);
         }
-        
+
         // Ordenação (ajustada para o backend)
         params.append('campoOrdenacao', 'prazoPassadoLinha');
         params.append('ordemOrdenacao', 'd'); // 'd' para descendente (vencendo primeiro)
-        
+
         return params;
     };
 
     const fetchProducts = useCallback(async () => {
         setLoading(true);
         setError(null);
-        
+
         try {
             const queryParams = buildQueryParams();
             const url = `${API_URL}?${queryParams.toString()}`;
-            
+
             console.log("URL da API:", url); // Para depuração
-            
+
             const response = await fetch(url);
-            
+
             if (!response.ok) {
                 throw new Error(`Erro ao carregar banco de dados: ${response.status}`);
             }
 
             const data = await response.json();
-            
+
             // Ajuste para a estrutura do seu backend
             setProducts(data.results || []);
             setTotalPages(data.total_pages || 1);
             setCurrentPage(data.current_page || 1);
-            
+
         } catch (err) {
             console.error("Erro na requisição:", err);
             setError(err instanceof Error ? err.message : 'Erro desconhecido');
@@ -133,7 +137,7 @@ export const Vencimento: React.FC = () => {
             setError(null);
             return;
         }
-        
+
         setValidationError(null);
         setError(null);
 
@@ -143,14 +147,15 @@ export const Vencimento: React.FC = () => {
         setQuantValue2(tempQuantValue2);
         setQuantFilter(tempQuantFilter);
         setValidadeFilter(tempValidadeFilter);
-        
+
         const newPage = Math.max(1, Math.min(totalPages, Number(tempPageInput) || 1));
         const adjustedPage = Math.min(newPage, totalPages);
-        
-        setCurrentPage(adjustedPage);
-        setTempPageInput(adjustedPage.toString());
+
+        // SEMPRE volta para a página 1 quando filtros mudam
+        setCurrentPage(1);
+        setTempPageInput('1');
     };
-    
+
     const copyToClipboard = (text: string) => {
         navigator.clipboard.writeText(text)
             .then(() => {
@@ -172,7 +177,7 @@ export const Vencimento: React.FC = () => {
         setTempDescFilter('');
         setTempPageInput('1');
         setTempValidadeFilter('');
-        
+
         setCodFilter('');
         setDescFilter('');
         setQuantValue1('');
@@ -191,7 +196,7 @@ export const Vencimento: React.FC = () => {
         if (e.shiftKey && e.key === 'Enter') {
             return;
         }
-        
+
         if (e.key === 'Enter') {
             e.preventDefault();
             applyFilters();
@@ -213,7 +218,8 @@ export const Vencimento: React.FC = () => {
         <div className="consulta-container">
             {/* Container de filtros superior */}
             <div className="filter-header">
-                <p id='mobile' className="instruction-text">Clique na linha para ver descrição completa</p>
+                <p id='mobile' className="instruction-text">Clique na linha para ver descrição completa<br />
+                    Clique no código para copiar</p>
                 <button
                     className="filter-btn clear-btn"
                     onClick={clearFilters}
@@ -231,7 +237,8 @@ export const Vencimento: React.FC = () => {
                         </span>
                     </div>
                 </button>
-                <p className="instruction-text">Clique na linha para ver descrição completa</p>
+                <p className="instruction-text">Clique na linha para ver descrição completa<br />
+                    Clique no código para copiar</p>
                 <button
                     className="filter-btn apply-btn"
                     onClick={applyFilters}
@@ -334,8 +341,8 @@ export const Vencimento: React.FC = () => {
                             rows={1}
                             disabled={loading}
                             onKeyDown={handleTextareaKeyPress}
-                            style={{ 
-                                resize: 'none', 
+                            style={{
+                                resize: 'none',
                                 minHeight: '38px',
                                 whiteSpace: 'pre-wrap'
                             }}
@@ -386,8 +393,8 @@ export const Vencimento: React.FC = () => {
                             key={`${product.codigo}-${index}`}
                             className={`table-row ${index % 2 === 0 ? 'even' : 'odd'}`}
                         >
-                            <div 
-                                className="col-cod" 
+                            <div
+                                className="col-cod"
                                 onClick={() => copyToClipboard(product.codigo)}
                                 style={{
                                     cursor: 'pointer',
@@ -396,6 +403,19 @@ export const Vencimento: React.FC = () => {
                                 title={copiedCode === product.codigo ? 'Código copiado!' : 'Clique para copiar o código'}
                             >
                                 {product.codigo}
+                                <svg id='copy-svg'
+                                    width="16"
+                                    height="16"
+                                    viewBox="0 0 24 24"
+                                    fill="none"
+                                    stroke="currentColor"
+                                    strokeWidth="2"
+                                    strokeLinecap="round"
+                                    strokeLinejoin="round"
+                                >
+                                    <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
+                                    <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
+                                </svg>
                                 {copiedCode === product.codigo && (
                                     <span style={{
                                         position: 'absolute',
@@ -406,20 +426,20 @@ export const Vencimento: React.FC = () => {
                                     }}>Código copiado! ✓</span>
                                 )}
                             </div>
-                            
-                            <div 
+
+                            <div
                                 className="col-saldo"
                                 onClick={() => setSelectedProduct(product)}
-                                style={{ 
+                                style={{
                                     cursor: 'pointer',
                                     padding: '0 10px',
                                 }}
                             >
                                 {product.saldo}
                             </div>
-                            
-                            <div 
-                                className="col-desc" 
+
+                            <div
+                                className="col-desc"
                                 onClick={() => setSelectedProduct(product)}
                                 title={product.descricao}
                                 style={{ cursor: 'pointer' }}
@@ -429,10 +449,10 @@ export const Vencimento: React.FC = () => {
                                     : product.descricao}
                             </div>
 
-                            <div 
+                            <div
                                 className="col-validade"
                                 onClick={() => setSelectedProduct(product)}
-                                style={{ 
+                                style={{
                                     cursor: 'pointer',
                                     color: product.prazoPassadoLinha < 0 ? 'red' : 'inherit'
                                 }}
@@ -536,10 +556,45 @@ export const Vencimento: React.FC = () => {
                             </div>
                             <div id="white" className="modal-row">
                                 <span>Código:</span>
-                                <span>{selectedProduct.codigo}</span>
+                                <div style={{
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    gap: '8px',
+                                    position: 'relative'
+                                }}>
+                                    <span style={{ fontWeight: '400' }}>{selectedProduct.codigo}</span>
+                                    <svg
+                                        width="16"
+                                        height="16"
+                                        viewBox="0 0 24 24"
+                                        fill="none"
+                                        stroke="currentColor"
+                                        strokeWidth="2"
+                                        strokeLinecap="round"
+                                        strokeLinejoin="round"
+                                        onClick={(e) => {
+                                            e.stopPropagation();
+                                            copyToClipboard(selectedProduct.codigo);
+                                        }}
+                                        style={{
+                                            cursor: 'pointer',
+                                            flexShrink: 0
+                                        }}
+                                    >
+                                        <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
+                                        <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
+                                    </svg>
+                                    {copiedCode === selectedProduct.codigo && (
+                                        <span style={{ color: 'green', fontSize: '0.8em' }}>Copiado!</span>
+                                    )}
+                                </div>
                             </div>
                             <div className="modal-row">
-                                <span>Validade:</span>
+                                <span>Data de Validade:</span>
+                                <span style={{ marginLeft: '18px' }}>{formatDate(selectedProduct.dataValidade)}</span>
+                            </div>
+                            <div className="modal-row" id='white'>
+                                <span>Status:</span>
                                 <span style={{ color: selectedProduct.prazoPassadoLinha < 0 ? 'red' : 'inherit' }}>
                                     {formatValidade(selectedProduct.prazoPassadoLinha)}
                                 </span>
