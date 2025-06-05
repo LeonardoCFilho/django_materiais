@@ -182,10 +182,10 @@ def criarFiltrosSQL(param: dict, tiposFiltros:dict) -> list[str]:
         # Prazo de validade
     }
     
-    
+
     if param.get("campoOrdenacao") in colunasDatabase and tiposFiltros.get(param.get("campoOrdenacao")) is not None:
         order_by = f" ORDER BY {colunasDatabase[param.get('campoOrdenacao')]} {ordemOrdenacao} "
-    
+
     return [filters, order_by]
 
 
@@ -318,7 +318,7 @@ def fetch_data(queryCriada:str, flag_TestarConexaoDatabase:bool=False) -> dict:
         raise e
 
 
-def acessarDatabaseOracle(paramGeral: dict, tipoAcesso:str) -> list[dict]:
+def acessarDatabaseOracle(paramGeral: dict, tipoAcesso:str, useExtraSQL:bool = False) -> list[dict]:
     """
     Faz uma query para o banco de dados oracle de acordo com os parametros de entra
 
@@ -396,6 +396,8 @@ WHERE
         # Criar a query SQL
         SQL_filtros_order = criarFiltrosSQL(paramGeral, dictFiltros)
         query = str(queryInicialDB + SQL_filtros_order[0] + SQL_filtros_order[1])
+        if useExtraSQL:
+            query += " FETCH FIRST 1 ROWS ONLY"
 
         # Solicitar ao banco de dados (read-only)
         try:
@@ -641,8 +643,18 @@ def consultaConsumoMedioMateriais(request):
         }
 
         if param['codigo'] and len(param['codigo']) == 10:
-            param['prazoPassadoLinha'] = int(param['prazoPassadoLinha'])*30 # Conversao mencionada
-            queryset = acessarDatabaseOracle(param, "consultaUsoMedioMateriais")
+            # Garantir que existe na tabela
+            testeParam = dict(param)
+            testeParam['prazoPassadoLinha'] = 50*12*30
+            testeQueryset = acessarDatabaseOracle(testeParam, "consultaUsoMedioMateriais", True)
+            if len(testeQueryset) == 1:
+                param['prazoPassadoLinha'] = int(param['prazoPassadoLinha'])*30 # Conversao mencionada
+                queryset = acessarDatabaseOracle(param, "consultaUsoMedioMateriais")
+            else:
+                mensagem_erro = lidarErrosGenericos(ValueError("Produto não existe na tabela"), "O codigo fornecido não está presente na tabela!")
+                messages.error(request, mensagem_erro)
+                flagExceptionAchada = True
+                queryset = []
         else:
             mensagem_erro = lidarErrosGenericos(ValueError("Codigo do produto não foi fornecido"), "O codigo completo do produto deve ser fornecido!")
             messages.error(request, mensagem_erro)
