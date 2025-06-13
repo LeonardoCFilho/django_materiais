@@ -108,7 +108,11 @@ export const Consulta: React.FC = () => {
             setCurrentPage(data.current_page || 1);
 
         } catch (err) {
-            setError(err instanceof Error ? err.message : 'Erro desconhecido');
+            if (err instanceof TypeError && err.message === 'Failed to fetch') {
+                setError('⚠️ Backend fora do ar'); // Definimos a mensagem personalizada.
+            } else {
+                setError(err instanceof Error ? err.message : 'Erro desconhecido');
+            }
         } finally {
             setLoading(false);
         }
