@@ -16,14 +16,14 @@ export const Header: React.FC = () => {
                     Requisição Fácil
                 </div>
 
-                <div className="user-section">
+                {/* <div className="user-section">
                     <div className="user-info">
                         <span className="user-name">{userName}</span>
                     </div>
                     <button className="logout-button">
                         <LogOut size={20} className="logout-icon" />
                     </button>
-                </div>
+                </div> */}
             </div>
             <div className="divider"></div>
         </header>

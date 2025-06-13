@@ -6,7 +6,7 @@ import { Consulta } from "./_components/consulta";
 export default function Home() {
     return (
         <>
-            <NavMenu />
+            {/* <NavMenu /> */}
             <Header />
             <Consulta />
         </>
