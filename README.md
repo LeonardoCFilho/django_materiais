@@ -1,6 +1,6 @@
 ## 1º Etapa
 ```bash
-git clone --branch master https://github.com/LeonardoCFilho/django_materiais.git frontend
+git clone --branch FrontendCompleto https://github.com/LeonardoCFilho/django_materiais.git frontend
 ```  
 
 ## 2º Etapa
